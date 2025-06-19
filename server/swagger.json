@@ -1,0 +1,1556 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Kanban API",
+    "version": "1.0.0",
+    "description": "API for the Kanban Application"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001/api",
+      "description": "Development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Projects",
+      "description": "Operations for managing projects"
+    },
+    {
+      "name": "Requirements",
+      "description": "Operations related to sprint requirements and activities"
+    },
+    {
+      "name": "Notes",
+      "description": "Operations for daily notes"
+    },
+    {
+      "name": "Retrospective",
+      "description": "Operations for sprint retrospective items"
+    },
+    {
+      "name": "Defects",
+      "description": "Operations for defect tracking"
+    }
+  ],
+  "paths": {
+    "/projects": {
+      "get": {
+        "summary": "Get all projects",
+        "tags": [
+          "Projects"
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of project names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "Project A",
+                        "Project B"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new project",
+        "tags": [
+          "Projects"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Project"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/projects/{projectName}": {
+      "delete": {
+        "summary": "Delete a project and all its associated data",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectNamePath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project and its data deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "changes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/requirements": {
+      "get": {
+        "summary": "Get all requirement groups",
+        "tags": [
+          "Requirements"
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of requirement groups with linked defects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RequirementGroup"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/activities": {
+      "post": {
+        "summary": "Create a new activity (can create a new requirement group or update an existing one)",
+        "tags": [
+          "Requirements"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Activity processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ActivityOutput"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/activities/{activityId}": {
+      "put": {
+        "summary": "Update an existing activity's comment, date, or link",
+        "tags": [
+          "Requirements"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ActivityIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivityUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Activity updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "changes": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/requirements/{requirementGroupId}/rename": {
+      "put": {
+        "summary": "Rename a requirement group (update its user-facing identifier)",
+        "tags": [
+          "Requirements"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequirementGroupIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementRenameInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requirement name updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "changes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/requirements/{requirementGroupId}": {
+      "delete": {
+        "summary": "Delete a requirement group and all its activities",
+        "tags": [
+          "Requirements"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequirementGroupIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requirement group deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "changes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/notes/{project}": {
+      "get": {
+        "summary": "Get all notes for a specific project",
+        "tags": [
+          "Notes"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A map of notes (date: text)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "example": {
+                        "2023-01-01": "Note for this date."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/notes": {
+      "post": {
+        "summary": "Create or update a note for a project and date (deletes if noteText is empty)",
+        "tags": [
+          "Notes"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Note processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "action": {
+                      "type": "string",
+                      "enum": [
+                        "saved",
+                        "deleted",
+                        "none"
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/NoteInput"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/retrospective/{project}": {
+      "get": {
+        "summary": "Get all retrospective items for a project",
+        "tags": [
+          "Retrospective"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of retrospective items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RetrospectiveItem"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/retrospective": {
+      "post": {
+        "summary": "Add a new retrospective item",
+        "tags": [
+          "Retrospective"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrospectiveItemInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Retrospective item added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RetrospectiveItem"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/retrospective/{id}": {
+      "put": {
+        "summary": "Update an existing retrospective item",
+        "tags": [
+          "Retrospective"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrospectiveItemUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Retrospective item updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "changes": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a retrospective item",
+        "tags": [
+          "Retrospective"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ItemIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retrospective item deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "changes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/defects/all": {
+      "get": {
+        "summary": "Get all defects from all projects",
+        "description": "Retrieves a comprehensive list of all defects, regardless of project or status. Useful for global search operations.",
+        "tags": [
+          "Defects"
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of all defects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Defect"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/defects/{project}": {
+      "get": {
+        "summary": "Get defects for a project with linked requirements",
+        "tags": [
+          "Defects"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectPath"
+          },
+          {
+            "name": "statusType",
+            "in": "query",
+            "description": "The type of defects to retrieve ('active', 'closed', or 'all')",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "closed",
+                "all"
+              ],
+              "default": "active"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of defects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Defect"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/defects": {
+      "post": {
+        "summary": "Create a new defect",
+        "tags": [
+          "Defects"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefectInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Defect created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Defect"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/defects/{id}": {
+      "put": {
+        "summary": "Update an existing defect",
+        "description": "Updates a defect's properties. Changing status to 'Closed' will move it to the closed view but will not delete it.",
+        "tags": [
+          "Defects"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DefectIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefectUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Defect processed (updated or comment added)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "defectId": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Permanently delete a defect",
+        "description": "Permanently deletes a defect and its associated history. This action is irreversible.",
+        "tags": [
+          "Defects"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DefectIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Defect deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "changes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/defects/{defectId}/history": {
+      "get": {
+        "summary": "Get history for a specific defect",
+        "tags": [
+          "Defects"
+        ],
+        "parameters": [
+          {
+            "name": "defectId",
+            "in": "path",
+            "required": true,
+            "description": "ID of the defect to get history for",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of defect history entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DefectHistoryEntry"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProjectInput": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the project."
+          }
+        }
+      },
+      "RequirementGroup": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requirement Group ID"
+          },
+          "project": {
+            "type": "string"
+          },
+          "requirementUserIdentifier": {
+            "type": "string",
+            "description": "User-facing name/ID"
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityLog"
+            }
+          },
+          "currentStatusDetails": {
+            "$ref": "#/components/schemas/ActivityLog"
+          },
+          "linkedDefects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkedDefect"
+            },
+            "description": "A list of defects linked to this requirement."
+          }
+        }
+      },
+      "ActivityLog": {
+        "type": "object",
+        "properties": {
+          "activityId": {
+            "type": "integer",
+            "description": "DB PK of the activity log"
+          },
+          "status": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true
+          },
+          "sprint": {
+            "type": "string",
+            "nullable": true
+          },
+          "link": {
+            "type": "string",
+            "format": "url",
+            "nullable": true
+          },
+          "isCurrent": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ActivityInput": {
+        "type": "object",
+        "required": [
+          "project",
+          "requirementName",
+          "status",
+          "statusDate",
+          "sprint"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "requirementName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "statusDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true
+          },
+          "sprint": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string",
+            "format": "url",
+            "nullable": true
+          },
+          "existingRequirementGroupId": {
+            "type": "integer",
+            "nullable": true,
+            "description": "ID of existing group if updating"
+          }
+        }
+      },
+      "ActivityOutput": {
+        "type": "object",
+        "properties": {
+          "activityDbId": {
+            "type": "integer"
+          },
+          "requirementGroupId": {
+            "type": "integer"
+          },
+          "project": {
+            "type": "string"
+          },
+          "requirementUserIdentifier": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "statusDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true
+          },
+          "sprint": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string",
+            "format": "url",
+            "nullable": true
+          },
+          "isCurrent": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ActivityUpdateInput": {
+        "type": "object",
+        "description": "Fields to update for an activity log. At least one must be provided.",
+        "properties": {
+          "comment": {
+            "type": "string",
+            "nullable": true
+          },
+          "statusDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "link": {
+            "type": "string",
+            "format": "url",
+            "nullable": true
+          }
+        },
+        "minProperties": 1
+      },
+      "RequirementRenameInput": {
+        "type": "object",
+        "required": [
+          "newRequirementName"
+        ],
+        "properties": {
+          "newRequirementName": {
+            "type": "string"
+          }
+        }
+      },
+      "NoteInput": {
+        "type": "object",
+        "required": [
+          "project",
+          "noteDate"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "noteDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "noteText": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RetrospectiveItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "project": {
+            "type": "string"
+          },
+          "column_type": {
+            "type": "string",
+            "enum": [
+              "well",
+              "wrong",
+              "improve"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "item_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RetrospectiveItemInput": {
+        "type": "object",
+        "required": [
+          "project",
+          "column_type",
+          "description",
+          "item_date"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "column_type": {
+            "type": "string",
+            "enum": [
+              "well",
+              "wrong",
+              "improve"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "item_date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "RetrospectiveItemUpdateInput": {
+        "type": "object",
+        "properties": {
+          "column_type": {
+            "type": "string",
+            "enum": [
+              "well",
+              "wrong",
+              "improve"
+            ],
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "item_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "minProperties": 1
+      },
+      "Defect": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "project": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "area": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Under Developer",
+              "To Be Tested",
+              "Done",
+              "Closed"
+            ]
+          },
+          "link": {
+            "type": "string",
+            "format": "url",
+            "nullable": true
+          },
+          "created_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "linkedRequirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkedRequirement"
+            },
+            "description": "A list of requirements linked to this defect."
+          }
+        }
+      },
+      "DefectInput": {
+        "type": "object",
+        "required": [
+          "project",
+          "title",
+          "area",
+          "status",
+          "created_date"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "area": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Under Developer",
+              "To Be Tested",
+              "Done"
+            ]
+          },
+          "link": {
+            "type": "string",
+            "format": "url",
+            "nullable": true
+          },
+          "created_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true,
+            "description": "Comment for the creation or update action"
+          },
+          "linkedRequirementGroupIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "An array of requirement group IDs to link to this defect."
+          }
+        }
+      },
+      "DefectUpdateInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "area": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Under Developer",
+              "To Be Tested",
+              "Done",
+              "Closed"
+            ],
+            "nullable": true
+          },
+          "link": {
+            "type": "string",
+            "format": "url",
+            "nullable": true
+          },
+          "created_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true,
+            "description": "Comment for the update action"
+          },
+          "linkedRequirementGroupIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "An array of requirement group IDs to link to this defect. This will replace all existing links."
+          }
+        },
+        "minProperties": 1
+      },
+      "DefectHistoryEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "defect_id": {
+            "type": "integer"
+          },
+          "changes_summary": {
+            "type": "string",
+            "nullable": true,
+            "description": "JSON string of changes"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true
+          },
+          "changed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LinkedDefect": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "LinkedRequirement": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sprint": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "parameters": {
+      "ProjectNamePath": {
+        "name": "projectName",
+        "in": "path",
+        "required": true,
+        "description": "Name of the project",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ActivityIdPath": {
+        "name": "activityId",
+        "in": "path",
+        "required": true,
+        "description": "ID of the specific activity log entry",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "RequirementGroupIdPath": {
+        "name": "requirementGroupId",
+        "in": "path",
+        "required": true,
+        "description": "ID of the requirement group",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "ProjectPath": {
+        "name": "project",
+        "in": "path",
+        "required": true,
+        "description": "Name of the project",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ItemIdPath": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "ID of the item (e.g., retrospective item, defect)",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "DefectIdPath": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "ID of the defect",
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad Request (e.g., invalid input, missing fields)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Internal Server Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Conflict (e.g., resource already exists)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}
