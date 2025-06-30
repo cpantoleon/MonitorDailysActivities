@@ -4,7 +4,7 @@ import RetrospectiveColumn from '../components/RetrospectiveColumn';
 import RetrospectiveItemModal from '../components/RetrospectiveItemModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = '/api';
 
 const COLUMN_TYPES = [
   { value: 'well', label: 'What Went Well?' },

@@ -1,10 +1,10 @@
-// src/pages/NotesPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
-import ConfirmationModal from '../components/ConfirmationModal'; // Import confirmation modal
+import ConfirmationModal from '../components/ConfirmationModal';
+import { CKEditor } from '@ckeditor/ckeditor5-react';
+import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
 
-// --- KEYWORD CONFIGURATION ---
 const KEYWORD_CONFIG = [
   { keyword: 'release date', type: 'release', label: 'Release Date' },
   { keyword: 'event', type: 'event', label: 'Event' },
@@ -25,7 +25,25 @@ const getNoteType = (noteText) => {
   }
   return DEFAULT_NOTE_TYPE;
 };
-// --- END KEYWORD CONFIGURATION ---
+
+function MyUploadAdapterPlugin(editor) {
+  editor.plugins.get('FileRepository').createUploadAdapter = (loader) => {
+    return {
+      upload: () => {
+        return loader.file.then(file => new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            resolve({ default: reader.result });
+          };
+          reader.onerror = err => {
+            reject(err);
+          };
+          reader.readAsDataURL(file);
+        }));
+      }
+    };
+  };
+}
 
 const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
   const [selectedProject, setSelectedProject] = useState('');
@@ -35,8 +53,6 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
   const [isLoadingNotes, setIsLoadingNotes] = useState(false);
   const [datesToHighlight, setDatesToHighlight] = useState([]);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
-
-  // --- NEW: State for the clear confirmation modal ---
   const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
 
   const formatDateKey = (date) => {
@@ -123,7 +139,7 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
       }
       const newNoteType = getNoteType(textToSave.trim());
       if (result.action === "deleted" || (result.action === "none" && textToSave.trim() === "")) {
-        setNoteText(''); // Clear the textarea on successful deletion
+        setNoteText('');
         setProjectNotesMap(prev => {
           const newMap = { ...prev };
           delete newMap[dateKey];
@@ -155,9 +171,7 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
     }
   }, [selectedProject, selectedDate, apiBaseUrl, showMessage]);
 
-  // --- NEW: Handlers for the clear confirmation flow ---
   const handleClearRequest = () => {
-    // We check if the note exists in the map, not just the text area
     const dateKey = formatDateKey(selectedDate);
     if (projectNotesMap[dateKey] && projectNotesMap[dateKey].trim()) {
       setIsConfirmClearOpen(true);
@@ -169,8 +183,8 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
   };
 
   const handleConfirmClear = async () => {
-    handleCancelClear(); // Close modal immediately for better UX
-    await handleSaveNote(''); // Call the save function with an empty string to trigger deletion
+    handleCancelClear();
+    await handleSaveNote('');
   };
 
   const renderDayContents = (dayOfMonth, date) => {
@@ -196,12 +210,27 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
 
   const toggleLegend = () => setIsLegendOpen(!isLegendOpen);
 
-  // --- CHANGE 1: Define a constant to check if a note is saved for the selected date ---
-  // This is now the source of truth for whether a note can be cleared.
   const hasSavedNoteForSelectedDate = !!(projectNotesMap[formatDateKey(selectedDate)] && projectNotesMap[formatDateKey(selectedDate)].trim());
+
+  const editorConfiguration = {
+    extraPlugins: [MyUploadAdapterPlugin],
+  };
 
   return (
     <div className="notes-page-container">
+      <style>{`
+        .ck-editor__editable_inline {
+            min-height: 250px;
+        }
+        .ck-content .image {
+            max-width: 200px;
+            height: auto;
+        }
+        .ck-content .image-inline {
+            max-width: 200px;
+            height: auto;
+        }
+      `}</style>
       <h2>Daily Notes</h2>
       <div className="notes-controls">
         <div>
@@ -254,13 +283,18 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
       {!isLoadingNotes && selectedProject ? (
         <div className="notes-editor-area">
           <h3>Notes for {selectedProject} on {selectedDate instanceof Date && !isNaN(selectedDate.getTime()) ? selectedDate.toLocaleDateString() : 'Select a date'}</h3>
-          <textarea
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            rows="15"
-            placeholder="Write your notes here..."
-            disabled={!selectedProject}
-          />
+          <div className="editor-wrapper">
+            <CKEditor
+                editor={ ClassicEditor }
+                data={noteText}
+                config={editorConfiguration}
+                onChange={ ( event, editor ) => {
+                    const data = editor.getData();
+                    setNoteText(data);
+                } }
+                disabled={!selectedProject}
+            />
+          </div>
           <div className="notes-actions-container">
             <button
               onClick={() => handleSaveNote(noteText)}
@@ -272,7 +306,6 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
             <button
               onClick={handleClearRequest}
               className="clear-note-button"
-              // --- CHANGE 2: Update the disabled logic for the Clear Note button ---
               disabled={isLoadingNotes || !selectedProject || !hasSavedNoteForSelectedDate}
             >
               Clear Note
@@ -283,7 +316,6 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
         !isLoadingNotes && !selectedProject && <p className="select-project-prompt">Please select a project to view or add notes.</p>
       )}
 
-      {/* --- NEW: Render the confirmation modal --- */}
       <ConfirmationModal
         isOpen={isConfirmClearOpen}
         onClose={handleCancelClear}

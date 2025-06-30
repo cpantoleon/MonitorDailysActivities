@@ -8,8 +8,14 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
 
 const swaggerDocument = JSON.parse(fs.readFileSync(path.join(__dirname, 'swagger.json'), 'utf8'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
@@ -102,7 +108,7 @@ app.get("/api/requirements", (req, res) => {
                 requirementsGroupMap.set(groupId, {
                     id: groupId,
                     project: row.project ? row.project.trim() : 'Unknown Project',
-                    requirementUserIdentifier: row.requirementUserIdentifier ? row.requirementUserIdentifier.trim() : 'Unknown Identifier',
+                    requirementUserIdentifier: row.requirementUserIdentifier ? row.requirementUserIdentifier.trim() : 'Unnamed Requirement',
                     history: [],
                     currentStatusDetails: {},
                     linkedDefects: linksMap.get(groupId) || []
@@ -447,6 +453,43 @@ app.get("/api/defects/:defectId/history", (req, res) => {
     const sql = "SELECT * FROM defect_history WHERE defect_id = ? ORDER BY changed_at ASC";
     db.all(sql, [defectId], (err, rows) => {
         if (err) return res.status(400).json({ "error": err.message });
+        res.json({ message: "success", data: rows });
+    });
+});
+
+app.get("/api/defects/:project/return-counts", (req, res) => {
+    const project = req.params.project.trim();
+    const statusType = req.query.statusType || 'active';
+
+    let statusCondition = "d.status != 'Closed'";
+    if (statusType === 'closed') {
+        statusCondition = "d.status = 'Closed'";
+    }
+
+    const sql = `
+        SELECT
+            d.id,
+            d.title,
+            COUNT(h.id) as return_count
+        FROM
+            defects d
+        JOIN
+            defect_history h ON d.id = h.defect_id
+        WHERE
+            d.project = ?
+            AND ${statusCondition}
+            AND h.changes_summary LIKE '%"new":"Under Developer"%'
+        GROUP BY
+            d.id, d.title
+        HAVING
+            return_count > 0
+        ORDER BY
+            return_count DESC
+    `;
+    db.all(sql, [project], (err, rows) => {
+        if (err) {
+            return res.status(400).json({ "error": err.message });
+        }
         res.json({ message: "success", data: rows });
     });
 });

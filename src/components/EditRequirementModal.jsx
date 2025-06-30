@@ -1,30 +1,50 @@
-// src/components/EditRequirementModal.jsx
 import React, { useState, useEffect } from 'react';
+import Select from 'react-select';
 
 const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
   const [formData, setFormData] = useState({
     name: '',
     comment: '',
-    sprint: '',
+    sprint: '1',
     status: '',
-    link: '', // --- CHANGE 1: Add link to form state ---
+    link: '',
+    isBacklog: false,
   });
+
+  const sprintNumberOptions = Array.from({ length: 20 }, (_, i) => ({
+    value: `${i + 1}`,
+    label: `${i + 1}`
+  }));
 
   useEffect(() => {
     if (requirement) {
+      const currentSprint = requirement.currentStatusDetails?.sprint || '';
+      const isBacklog = currentSprint === 'Backlog';
+      let sprintNumber = '1';
+
+      if (!isBacklog && currentSprint.startsWith('Sprint ')) {
+        sprintNumber = currentSprint.split(' ')[1] || '1';
+      }
+
       setFormData({
         name: requirement.requirementUserIdentifier || '',
         comment: requirement.currentStatusDetails?.comment || '',
-        sprint: requirement.currentStatusDetails?.sprint || '',
+        sprint: sprintNumber,
         status: requirement.currentStatusDetails?.status || '',
-        link: requirement.currentStatusDetails?.link || '', // --- CHANGE 2: Populate link from requirement ---
+        link: requirement.currentStatusDetails?.link || '',
+        isBacklog: isBacklog,
       });
     }
   }, [requirement]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    const val = type === 'checkbox' ? checked : value;
+    setFormData(prev => ({ ...prev, [name]: val }));
+  };
+  
+  const handleSprintChange = (selectedOption) => {
+    setFormData(prev => ({...prev, sprint: selectedOption.value }));
   };
 
   const handleSubmit = (e) => {
@@ -35,6 +55,14 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
   if (!isOpen || !requirement) return null;
 
   const statusOptions = ['To Do', 'Scenarios created', 'Under testing', 'Done'];
+
+  const customSelectStyles = {
+    menuList: (base) => ({
+      ...base,
+      maxHeight: '180px',
+      overflowY: 'auto',
+    }),
+  };
 
   return (
     <div className="add-new-modal-overlay">
@@ -65,15 +93,30 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
           </div>
           <div className="form-group">
             <label htmlFor="editReqSprint">Sprint:</label>
-            <input
-              type="text"
+            <Select
               id="editReqSprint"
               name="sprint"
-              value={formData.sprint}
-              onChange={handleChange}
-              required
+              value={sprintNumberOptions.find(opt => opt.value === formData.sprint)}
+              onChange={handleSprintChange}
+              options={sprintNumberOptions}
+              isDisabled={formData.isBacklog}
+              styles={customSelectStyles}
             />
           </div>
+
+          <div className="form-group new-project-toggle">
+             <input
+              type="checkbox"
+              id="isBacklogCheckboxEdit"
+              name="isBacklog"
+              checked={formData.isBacklog}
+              onChange={handleChange}
+            />
+            <label htmlFor="isBacklogCheckboxEdit" className="checkbox-label optional-label">
+              Assign to Backlog
+            </label>
+          </div>
+
           <div className="form-group">
             <label htmlFor="editReqStatus">Status:</label>
             <select
@@ -86,7 +129,6 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
               {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-          {/* --- CHANGE 3: Add input field for the link --- */}
           <div className="form-group">
             <label htmlFor="editReqLink" className="optional-label">Link (e.g., JIRA):</label>
             <input

@@ -35,44 +35,78 @@ body {
     gap: 15px;
 }
 
-.add-new-req-button,
-.add-new-project-button,
-.delete-project-button {
-    padding: 10px 20px;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 0.95em;
-    transition: background-color 0.2s ease, opacity 0.2s ease;
-}
-.add-new-req-button {
-    background-color: #8B4513;
-}
-.add-new-req-button:hover {
-    background-color: #5C4033;
+/* --- REMOVED: Old button styles are no longer needed here --- */
+
+/* --- NEW: Styles for the 3-dots options menu --- */
+.options-menu-container {
+  position: relative;
+  display: inline-block;
 }
 
-.add-new-project-button {
-    background-color: #A0522D;
-}
-.add-new-project-button:hover {
-    background-color: #8B4513;
+.options-menu-button {
+  background-color: transparent;
+  border: 1px solid #DEB887;
+  color: #5C4033;
+  padding: 8px 10px;
+  font-size: 1.5em;
+  line-height: 1;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.delete-project-button {
-    background-color: #E74C3C;
+.options-menu-button:hover {
+  background-color: #F5DEB3;
+  border-color: #D2B48C;
 }
-.delete-project-button:hover:not(:disabled) {
-    background-color: #C0392B;
+
+.options-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px); /* Position below the button with a small gap */
+  background-color: #FFFAF0;
+  border: 1px solid #D2B48C;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+  width: 200px;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
 }
-.delete-project-button:disabled {
-    background-color: #f8d7da;
-    color: #842029;
-    cursor: not-allowed;
-    opacity: 0.6;
+
+.options-menu-item {
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: 10px 15px;
+  font-size: 0.95em;
+  color: #5C4033;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
 }
+
+.options-menu-item:hover {
+  background-color: #F5DEB3;
+}
+
+.options-menu-item.danger {
+  color: #C0392B;
+}
+
+.options-menu-item.danger:hover:not(:disabled) {
+  background-color: #f8d7da;
+  color: #842029;
+}
+
+.options-menu-item:disabled {
+  color: #ab987a;
+  background-color: transparent;
+  cursor: not-allowed;
+}
+
+/* --- END OF NEW STYLES --- */
 
 .selection-controls {
   padding: 15px 20px;

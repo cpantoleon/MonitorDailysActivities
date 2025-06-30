@@ -7,12 +7,12 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import DefectHistoryModal from '../components/DefectHistoryModal';
 import SearchComponent from '../components/SearchComponent';
 import UpdateStatusModal from '../components/UpdateStatusModal';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title, BarElement, CategoryScale, LinearScale } from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
 
-ChartJS.register(ArcElement, Tooltip, Legend, Title);
+ChartJS.register(ArcElement, Tooltip, Legend, Title, BarElement, CategoryScale, LinearScale);
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = '/api';
 const DEFECT_STATUS_COLUMNS = [
   { title: 'Under Developer', status: 'Under Developer' },
   { title: 'To Be Tested', status: 'To Be Tested' },
@@ -34,6 +34,7 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
   const [defectToDelete, setDefectToDelete] = useState(null);
   const [showAreaChart, setShowAreaChart] = useState(false);
   const [areaChartData, setAreaChartData] = useState(null);
+  const [returnToDevChartData, setReturnToDevChartData] = useState(null);
   const [showClosedView, setShowClosedView] = useState(false);
 
   const [isSearching, setIsSearching] = useState(false);
@@ -47,7 +48,6 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
   const navigate = useNavigate();
   const location = useLocation();
   
-  // *** FIX: Add a useRef to prevent double-fetching in StrictMode ***
   const hasFetched = useRef(false);
 
   const fetchAllDefects = useCallback(async () => {
@@ -65,7 +65,6 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
     }
   }, [showMessage]);
 
-  // *** FIX: Use the useRef flag to ensure this effect runs only once on mount ***
   useEffect(() => {
     if (!hasFetched.current) {
       fetchAllDefects();
@@ -117,10 +116,49 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
   }, [activeDefects, closedDefects, showClosedView]);
 
   useEffect(() => {
-    if (showAreaChart && !areaChartData) {
+    if (!selectedProject) {
+      setReturnToDevChartData(null);
+      return;
+    }
+
+    const fetchReturnCounts = async () => {
+      try {
+        const statusType = showClosedView ? 'closed' : 'active';
+        const response = await fetch(`${API_BASE_URL}/defects/${selectedProject}/return-counts?statusType=${statusType}`);
+        if (!response.ok) throw new Error('Failed to fetch return to developer counts');
+        const result = await response.json();
+        
+        if (result.data && result.data.length > 0) {
+          const labels = result.data.map(d => d.title);
+          const data = result.data.map(d => d.return_count);
+
+          setReturnToDevChartData({
+            labels,
+            datasets: [{
+              label: 'Times Returned to Developer',
+              data,
+              backgroundColor: 'rgba(255, 159, 64, 0.7)',
+              borderColor: 'rgba(255, 159, 64, 1)',
+              borderWidth: 1,
+            }]
+          });
+        } else {
+          setReturnToDevChartData(null);
+        }
+      } catch (error) {
+        showMessage(`Could not load return counts chart: ${error.message}`, 'error');
+        setReturnToDevChartData(null);
+      }
+    };
+
+    fetchReturnCounts();
+  }, [selectedProject, showMessage, showClosedView]);
+
+  useEffect(() => {
+    if (showAreaChart && !areaChartData && !returnToDevChartData) {
       setShowAreaChart(false);
     }
-  }, [areaChartData, showAreaChart]);
+  }, [areaChartData, returnToDevChartData, showAreaChart]);
 
   const handleOpenModal = (defect = null) => {
     setEditingDefect(defect); setIsModalOpen(true);
@@ -336,6 +374,28 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
     },
   };
 
+  const returnToDevChartOptions = {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      title: {
+        display: true,
+        text: `Defect "Back to Developer" Count for ${selectedProject || 'Project'}`,
+        font: { size: 14 }
+      }
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: {
+          stepSize: 1
+        }
+      }
+    }
+  };
+
   const renderBoard = (defectsToDisplay) => {
     if (showClosedView) {
       return (
@@ -367,23 +427,51 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
 
   return (
     <div className="main-content-area">
+      <style>{`
+        .defects-controls .selection-group-container {
+          display: flex;
+          align-items: flex-start;
+          gap: 16px;
+        }
+        .defect-charts-wrapper {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 20px;
+          margin-bottom: 20px;
+        }
+        .defect-charts-wrapper .defect-chart-container {
+          flex: 1 1 45%;
+          min-width: 400px;
+          max-width: 600px;
+          height: 320px;
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          background-color: #fff;
+        }
+      `}</style>
       <h2>Defect Tracking</h2>
       <div className="defects-controls">
         <div className="selection-group-container">
             <ProjectSelector projects={projects || []} selectedProject={selectedProject} onSelectProject={setSelectedProject} />
+            <div className="selection-group">
+                <span className="dropdown-label" style={{ visibility: 'hidden' }}>Search</span>
+                <SearchComponent
+                  query={defectQuery}
+                  onQueryChange={handleDefectQueryChange}
+                  onSearch={handleDefectSearch}
+                  onClear={handleClearDefectSearch}
+                  onSuggestionSelect={handleDefectSuggestionSelect}
+                  suggestions={searchSuggestions}
+                  placeholder="Search defects by title..."
+                />
+            </div>
         </div>
         <div className="defects-actions-group">
-            <SearchComponent
-              query={defectQuery}
-              onQueryChange={handleDefectQueryChange}
-              onSearch={handleDefectSearch}
-              onClear={handleClearDefectSearch}
-              onSuggestionSelect={handleDefectSuggestionSelect}
-              suggestions={searchSuggestions}
-              placeholder="Search all defects by title..."
-            />
-            <button onClick={() => setShowAreaChart(p => !p)} className="defect-action-button" disabled={!selectedProject || !areaChartData}>
-                {showAreaChart ? 'Hide' : 'Show'} Area Chart
+            <button onClick={() => setShowAreaChart(p => !p)} className="defect-action-button" disabled={!selectedProject || (!areaChartData && !returnToDevChartData)}>
+                {showAreaChart ? 'Hide' : 'Show'} Charts
             </button>
             <button onClick={() => setShowClosedView(p => !p)} className="defect-action-button" disabled={isLoading || allDefects.filter(d => d.status === 'Closed').length === 0} style={{backgroundColor: '#E0D3B6', borderColor: '#C8BBA2'}}>
                 {showClosedView ? 'Show Active Defects' : 'Show Closed Defects'}
@@ -400,8 +488,25 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
           <p className="select-project-prompt-defects">Please select a project to view defects, or use the search bar for all projects.</p>
       )}
 
-      {showAreaChart && selectedProject && areaChartData && (<div className="defect-chart-container small-chart"><Pie data={areaChartData} options={pieChartOptions} /></div>)}
-      {showAreaChart && selectedProject && !areaChartData && !isLoading && (<div className="defect-chart-container small-chart"><p>No defect data for chart.</p></div>)}
+      {showAreaChart && selectedProject && (
+        <div className="defect-charts-wrapper">
+          {areaChartData && (
+            <div className="defect-chart-container">
+              <Pie data={areaChartData} options={pieChartOptions} />
+            </div>
+          )}
+          {returnToDevChartData && (
+            <div className="defect-chart-container">
+              <Bar data={returnToDevChartData} options={returnToDevChartOptions} />
+            </div>
+          )}
+          {!areaChartData && !returnToDevChartData && !isLoading && (
+            <div className="defect-chart-container" style={{ flexBasis: '100%', height: 'auto' }}>
+              <p>No chart data available for the selected project.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {!isLoading && (
         isSearching 

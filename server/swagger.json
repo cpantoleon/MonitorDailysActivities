@@ -700,14 +700,13 @@
           {
             "name": "statusType",
             "in": "query",
-            "description": "The type of defects to retrieve ('active', 'closed', or 'all')",
+            "description": "The type of defects to retrieve ('active' or 'closed')",
             "required": false,
             "schema": {
               "type": "string",
               "enum": [
                 "active",
-                "closed",
-                "all"
+                "closed"
               ],
               "default": "active"
             }
@@ -728,6 +727,61 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Defect"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/defects/{project}/return-counts": {
+      "get": {
+        "summary": "Get 'Back to Developer' counts for defects in a project",
+        "tags": [
+          "Defects"
+        ],
+        "description": "Retrieves a list of defects for a given project, along with a count of how many times each defect's history includes a status change to 'Under Developer'.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectPath"
+          },
+          {
+            "name": "statusType",
+            "in": "query",
+            "description": "Filter defects by their current status ('active' or 'closed')",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "closed"
+              ],
+              "default": "active"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of defects with their return counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DefectReturnCount"
                       }
                     }
                   }
@@ -1144,7 +1198,8 @@
           },
           "noteText": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "The content of the note. Can be plain text or HTML from the rich text editor, including large Base64-encoded images."
           }
         }
       },
@@ -1414,6 +1469,23 @@
           "changed_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "DefectReturnCount": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 15
+          },
+          "title": {
+            "type": "string",
+            "example": "UI Glitch on Login Page"
+          },
+          "return_count": {
+            "type": "integer",
+            "example": 3
           }
         }
       },

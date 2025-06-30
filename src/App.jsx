@@ -18,7 +18,66 @@ import Toast from './components/Toast';
 import SearchComponent from './components/SearchComponent';
 import UpdateStatusModal from './components/UpdateStatusModal';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = '/api';
+
+const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onDeleteProjectRequest, selectedProject }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuRef]);
+
+  const handleAddProjectClick = () => {
+    onOpenAddProjectModal();
+    setIsOpen(false);
+  };
+
+  const handleAddRequirementClick = () => {
+    onOpenAddModal();
+    setIsOpen(false);
+  };
+
+  const handleDeleteProjectClick = () => {
+    onDeleteProjectRequest();
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="options-menu-container" ref={menuRef}>
+      <button onClick={() => setIsOpen(!isOpen)} className="options-menu-button" title="More options">
+        ⋮
+      </button>
+      {isOpen && (
+        <div className="options-menu-dropdown">
+          <button onClick={handleAddProjectClick} className="options-menu-item">
+            + Add Project
+          </button>
+          <button onClick={handleAddRequirementClick} className="options-menu-item">
+            + Add Requirement
+          </button>
+          <button 
+            onClick={handleDeleteProjectClick} 
+            className="options-menu-item danger" 
+            disabled={!selectedProject}
+            title={!selectedProject ? "Select a project to enable deletion" : "Delete the currently selected project"}
+          >
+            - Delete Project
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 const SprintActivitiesPage = ({
   projects,
@@ -60,9 +119,12 @@ const SprintActivitiesPage = ({
             suggestions={searchSuggestions}
             placeholder="Search requirements..."
           />
-          <button onClick={onOpenAddProjectModal} className="add-new-project-button">+ Add Project</button>
-          <button onClick={onOpenAddModal} className="add-new-req-button">+ Add Requirement</button>
-          <button onClick={onDeleteProjectRequest} className="delete-project-button" disabled={!selectedProject}>- Delete Project</button>
+          <OptionsMenu
+            onOpenAddProjectModal={onOpenAddProjectModal}
+            onOpenAddModal={onOpenAddModal}
+            onDeleteProjectRequest={onDeleteProjectRequest}
+            selectedProject={selectedProject}
+          />
         </div>
       </div>
       {isSearching && displayableRequirements.length === 0 && (
@@ -99,7 +161,7 @@ function App() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newReqFormState, setNewReqFormState] = useState({
-    project: '', requirementName: '', status: 'To Do', sprint: '', comment: '', link: ''
+    project: '', requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false
   });
 
   const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState(false);
@@ -248,7 +310,9 @@ function App() {
     if (!editingRequirement) return;
 
     const { id, project, requirementUserIdentifier, currentStatusDetails } = editingRequirement;
-    const { name, comment, sprint, status, link } = formData;
+    const { name, comment, sprint, status, link, isBacklog } = formData;
+    
+    const newSprintValue = isBacklog ? 'Backlog' : `Sprint ${sprint}`;
 
     let somethingChanged = false;
     try {
@@ -261,13 +325,13 @@ function App() {
         if (!renameResponse.ok) throw new Error('Failed to rename requirement.');
       }
 
-      if (status !== currentStatusDetails.status || sprint !== currentStatusDetails.sprint) {
+      if (status !== currentStatusDetails.status || newSprintValue !== currentStatusDetails.sprint) {
         somethingChanged = true;
         const activityPayload = {
           project: project,
           requirementName: name.trim(),
           status: status,
-          sprint: sprint,
+          sprint: newSprintValue,
           comment: comment,
           link: link,
           statusDate: new Date().toISOString().split('T')[0],
@@ -321,28 +385,32 @@ function App() {
     let initialProjectForModal = selectedProject || (projects.length > 0 ? projects[0] : '');
     setNewReqFormState({
         project: initialProjectForModal,
-        requirementName: '', status: 'To Do', sprint: '', comment: '', link: ''
+        requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false
     });
     setIsAddModalOpen(true);
   }, [selectedProject, projects]);
 
   const handleCloseAddModal = useCallback(() => setIsAddModalOpen(false), []);
   const handleNewReqFormChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setNewReqFormState(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    const val = type === 'checkbox' ? checked : value;
+    setNewReqFormState(prev => ({ ...prev, [name]: val }));
   }, []);
 
   const handleAddNewRequirement = useCallback(async () => {
-    const { project, requirementName, status, sprint, comment, link } = newReqFormState;
-    if (!project.trim() || !requirementName.trim() || !status.trim() || !sprint.trim()) {
-      showMainMessage("Project, Requirement Name, Status, and Sprint are mandatory.", 'error');
+    const { project, requirementName, status, sprint, comment, link, isBacklog } = newReqFormState;
+    if (!project.trim() || !requirementName.trim() || !status.trim()) {
+      showMainMessage("Project, Requirement Name, and Status are mandatory.", 'error');
       return;
     }
+    
+    const sprintValue = isBacklog ? 'Backlog' : `Sprint ${sprint}`;
+
     const payload = {
       project: project.trim(),
       requirementName: requirementName.trim(),
       status: status.trim(),
-      sprint: sprint.trim(),
+      sprint: sprintValue,
       comment: comment ? comment.trim() : null,
       link: link ? link.trim() : null,
       statusDate: new Date().toISOString().split('T')[0]
