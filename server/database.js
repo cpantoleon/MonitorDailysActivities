@@ -24,6 +24,19 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
             )`, (err) => {
                 if (err) console.error("Error creating projects table", err.message);
             });
+
+            db.run(`CREATE TABLE IF NOT EXISTS releases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project TEXT NOT NULL,
+                name TEXT NOT NULL,
+                release_date TEXT NOT NULL,
+                is_current INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(project, name)
+            )`, (err) => {
+                if (err) console.error("Error creating releases table", err.message);
+            });
             
             db.run(`CREATE TABLE IF NOT EXISTS activities (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,8 +52,10 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                 tags TEXT,
                 key TEXT,
                 isCurrent INTEGER DEFAULT 0,
+                release_id INTEGER,
                 created_at TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                FOREIGN KEY (release_id) REFERENCES releases(id) ON DELETE SET NULL
             )`, (err) => {
                 if (err) console.error("Error creating activities table", err.message);
                 else {
@@ -52,7 +67,8 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                             { name: 'updated_at', type: 'TEXT' },
                             { name: 'type', type: 'TEXT' },
                             { name: 'tags', type: 'TEXT' },
-                            { name: 'key', type: 'TEXT' }
+                            { name: 'key', type: 'TEXT' },
+                            { name: 'release_id', type: 'INTEGER' }
                         ];
 
                         columnsToAdd.forEach(col => {
@@ -94,7 +110,7 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                 title TEXT NOT NULL,
                 description TEXT,
                 area TEXT NOT NULL,
-                status TEXT NOT NULL CHECK(status IN ('Under Developer', 'To Be Tested', 'Done', 'Closed')),
+                status TEXT NOT NULL CHECK(status IN ('Assigned to Developer', 'Assigned to Tester', 'Done', 'Closed')),
                 link TEXT,
                 created_date TEXT NOT NULL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,

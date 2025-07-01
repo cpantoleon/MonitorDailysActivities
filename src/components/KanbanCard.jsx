@@ -8,7 +8,7 @@ const KanbanCard = React.memo(({
   onDeleteRequirement,
   onDragStart
 }) => {
-  const { comment, link, type, tags } = requirement.currentStatusDetails;
+  const { comment, link, type, tags, releaseName, releaseDate } = requirement.currentStatusDetails;
   const navigate = useNavigate();
 
   const handleDefectClick = (project) => {
@@ -29,6 +29,12 @@ const KanbanCard = React.memo(({
     e.currentTarget.classList.remove('dragging');
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    // Add 'T00:00:00' to treat the date string as local, not UTC
+    return new Date(dateString + 'T00:00:00').toLocaleDateString();
+  };
+
   return (
     <div 
       className="kanban-card"
@@ -40,6 +46,13 @@ const KanbanCard = React.memo(({
         <strong>{requirement.requirementUserIdentifier}</strong>
 
         <div className="kanban-card-details">
+          {releaseName && (
+            <p className="card-detail-item">
+              <span className="detail-label">Release:</span>
+              <span className="detail-value">{releaseName} (Due: {formatDate(releaseDate)})</span>
+            </p>
+          )}
+
           {type && (
             <p className="card-detail-item">
               <span className="detail-label">Type:</span>
@@ -77,7 +90,7 @@ const KanbanCard = React.memo(({
                 {requirement.linkedDefects.map(defect => (
                   <button 
                     key={defect.id} 
-                    className="linked-item-tag requirement"
+                    className="linked-item-tag defect"
                     onClick={() => handleDefectClick(requirement.project)}
                     title={`Go to defects for project ${requirement.project}`}
                   >
@@ -88,7 +101,7 @@ const KanbanCard = React.memo(({
             </div>
           )}
 
-          {!comment && !link && !type && !tags && (!requirement.linkedDefects || requirement.linkedDefects.length === 0) && (
+          {!releaseName && !comment && !link && !type && !tags && (!requirement.linkedDefects || requirement.linkedDefects.length === 0) && (
             <p className="card-detail-item-empty">No additional details.</p>
           )}
         </div>

@@ -874,6 +874,22 @@ body {
 .confirmation-modal-content .modal-button-cancel { background-color: #E0E0E0; color: #333333; border: 1px solid #C0C0C0; }
 .confirmation-modal-content .modal-button-cancel:hover { background-color: #D0D0D0; }
 
+.modal-button-delete {
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 0.95em;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  background-color: #E74C3C;
+  color: white;
+  border: 1px solid #C0392B;
+}
+.modal-button-delete:hover {
+  background-color: #C0392B;
+  border-color: #A93226;
+}
+
 .defects-page-container h2, .retrospective-page-container h2 {
   color: #5C4033;
   text-align: center;
@@ -1033,13 +1049,13 @@ body {
 }
 
 .linked-item-tag.defect {
-  background-color: #fce4ec;
-  border-color: #f06292;
-  color: #c2185b;
+  background-color: #e0f2f1;
+  border-color: #4db6ac;
+  color: #00695c;
 }
 
 .linked-item-tag.defect:hover {
-  background-color: #f8bbd0;
+  background-color: #b2dfdb;
 }
 
 .dual-listbox-container {
@@ -1207,9 +1223,15 @@ body {
   cursor: help;
 }
 
+.tooltip-icon.release {
+  width: 15px;
+  height: 15px;
+  font-size: 11px;
+}
+
 .tooltip-text-portal {
   position: fixed;
-  transform: translateY(-50%); /* Vertically center against the icon's middle */
+  transform: translateY(-50%);
   background-color: #5C4033;
   color: #fff;
   text-align: left;
@@ -1223,12 +1245,18 @@ body {
   pointer-events: none;
 }
 
+.tooltip-text-portal.release {
+  width: auto;
+  max-width: 220px;
+  padding: 8px 10px;
+}
+
 .tooltip-text-portal::after {
   content: "";
   position: absolute;
   top: 50%;
-  right: 100%; /* Position the arrow on the left side of the tooltip */
-  margin-top: -6px; /* Vertically center the arrow */
+  right: 100%;
+  margin-top: -6px;
   border-width: 6px;
   border-style: solid;
   border-color: transparent #5C4033 transparent transparent;
@@ -1264,6 +1292,32 @@ body {
   margin-bottom: 15px;
   text-align: center;
   font-size: 0.9em;
+}
+
+.charts-wrapper {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.chart-container {
+  flex: 1 1 45%;
+  min-width: 400px;
+  max-width: 500px;
+  height: 350px;
+  padding: 15px;
+  border: 1px solid #DEB887;
+  border-radius: 8px;
+  background-color: #FFF8DC;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+}
+.chart-container p {
+  text-align: center;
+  color: #5C4033;
+  font-style: italic;
+  margin-top: 20px;
 }
 
 @media screen and (max-width: 1400px) {

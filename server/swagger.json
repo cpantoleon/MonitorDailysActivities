@@ -17,6 +17,10 @@
       "description": "Operations for managing projects"
     },
     {
+      "name": "Releases",
+      "description": "Operations for managing project releases"
+    },
+    {
       "name": "Requirements",
       "description": "Operations related to sprint requirements and activities"
     },
@@ -119,7 +123,7 @@
         }
       }
     },
-    "/projects/{projectName}": {
+    "/projects/{name}": {
       "delete": {
         "summary": "Delete a project and all its associated data",
         "tags": [
@@ -157,6 +161,149 @@
           },
           "500": {
             "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/releases/{project}": {
+      "get": {
+        "summary": "Get all releases for a project",
+        "tags": [
+          "Releases"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of releases for the specified project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Release"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/releases": {
+      "post": {
+        "summary": "Create a new release",
+        "tags": [
+          "Releases"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Release created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Release"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/releases/{id}": {
+      "put": {
+        "summary": "Update an existing release",
+        "tags": [
+          "Releases"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReleaseIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Release updated successfully"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a release",
+        "tags": [
+          "Releases"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReleaseIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Release deleted successfully"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -318,25 +465,51 @@
         },
         "responses": {
           "200": {
-            "description": "Requirement name updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "changes": {
-                      "type": "integer"
-                    }
+            "description": "Requirement name updated successfully"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/requirements/{requirementGroupId}/set-release": {
+      "put": {
+        "summary": "Set the release for a requirement group",
+        "tags": [
+          "Requirements"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequirementGroupIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "release_id": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "The ID of the release to associate. Null to disassociate."
                   }
                 }
               }
             }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Release updated for the requirement group."
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -360,22 +533,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Requirement group deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "changes": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Requirement group deleted successfully"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -389,7 +547,6 @@
     "/import/validate": {
       "post": {
         "summary": "Validate a requirements Excel file for import",
-        "description": "Checks an Excel file for new, duplicate, and skippable requirements without actually importing them.",
         "tags": [
           "Import"
         ],
@@ -402,12 +559,10 @@
                 "properties": {
                   "file": {
                     "type": "string",
-                    "format": "binary",
-                    "description": "The .xlsx or .xls file to validate."
+                    "format": "binary"
                   },
                   "project": {
-                    "type": "string",
-                    "description": "The target project name for validation."
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -420,33 +575,7 @@
         },
         "responses": {
           "200": {
-            "description": "Validation complete.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "newCount": {
-                          "type": "integer"
-                        },
-                        "duplicateCount": {
-                          "type": "integer"
-                        },
-                        "skippedCount": {
-                          "type": "integer"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Validation complete."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -460,7 +589,6 @@
     "/import/requirements": {
       "post": {
         "summary": "Import requirements from an Excel file",
-        "description": "Imports requirements from an Excel file. If duplicates are found (based on the 'Key' column), they are renamed and imported.",
         "tags": [
           "Import"
         ],
@@ -473,16 +601,13 @@
                 "properties": {
                   "file": {
                     "type": "string",
-                    "format": "binary",
-                    "description": "The .xlsx or .xls file to import."
+                    "format": "binary"
                   },
                   "project": {
-                    "type": "string",
-                    "description": "The target project name."
+                    "type": "string"
                   },
                   "sprint": {
-                    "type": "string",
-                    "description": "The target sprint for the new requirements."
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -496,33 +621,7 @@
         },
         "responses": {
           "201": {
-            "description": "Import successful.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "imported": {
-                          "type": "integer"
-                        },
-                        "renamed": {
-                          "type": "integer"
-                        },
-                        "skipped": {
-                          "type": "integer"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Import successful."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -536,7 +635,6 @@
     "/import/defects/validate": {
       "post": {
         "summary": "Validate a defects Excel file for import",
-        "description": "Checks an Excel file for new, duplicate, and skippable defects without actually importing them.",
         "tags": [
           "Import"
         ],
@@ -549,12 +647,10 @@
                 "properties": {
                   "file": {
                     "type": "string",
-                    "format": "binary",
-                    "description": "The .xlsx or .xls file to validate."
+                    "format": "binary"
                   },
                   "project": {
-                    "type": "string",
-                    "description": "The target project name for validation."
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -567,33 +663,7 @@
         },
         "responses": {
           "200": {
-            "description": "Validation complete.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "newCount": {
-                          "type": "integer"
-                        },
-                        "duplicateCount": {
-                          "type": "integer"
-                        },
-                        "skippedCount": {
-                          "type": "integer"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Validation complete."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -607,7 +677,6 @@
     "/import/defects": {
       "post": {
         "summary": "Import defects from an Excel file",
-        "description": "Imports defects from an Excel file. If duplicates are found (based on the 'Key' column), they are renamed and imported.",
         "tags": [
           "Import"
         ],
@@ -620,12 +689,10 @@
                 "properties": {
                   "file": {
                     "type": "string",
-                    "format": "binary",
-                    "description": "The .xlsx or .xls file to import."
+                    "format": "binary"
                   },
                   "project": {
-                    "type": "string",
-                    "description": "The target project name."
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -638,33 +705,7 @@
         },
         "responses": {
           "201": {
-            "description": "Import successful.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "imported": {
-                          "type": "integer"
-                        },
-                        "renamed": {
-                          "type": "integer"
-                        },
-                        "skipped": {
-                          "type": "integer"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Import successful."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -688,29 +729,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A map of notes (date: text)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "success"
-                    },
-                    "data": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "example": {
-                        "2023-01-01": "Note for this date."
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "A map of notes (date: text)"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -736,30 +755,7 @@
         },
         "responses": {
           "200": {
-            "description": "Note processed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "action": {
-                      "type": "string",
-                      "enum": [
-                        "saved",
-                        "deleted",
-                        "none"
-                      ]
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/NoteInput"
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Note processed successfully"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -780,26 +776,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A list of retrospective items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "success"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/RetrospectiveItem"
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "A list of retrospective items"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -825,22 +802,7 @@
         },
         "responses": {
           "200": {
-            "description": "Retrospective item added",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/RetrospectiveItem"
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Retrospective item added"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -871,30 +833,7 @@
         },
         "responses": {
           "200": {
-            "description": "Retrospective item updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer"
-                        },
-                        "changes": {
-                          "type": "integer"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Retrospective item updated"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -916,22 +855,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Retrospective item deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "changes": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Retrospective item deleted"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -950,25 +874,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A list of all defects",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Defect"
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "A list of all defects"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1003,25 +909,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A list of defects",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Defect"
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "A list of defects"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1056,26 +944,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A list of defects with their return counts.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "success"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/DefectReturnCount"
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "A list of defects with their return counts."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1101,22 +970,7 @@
         },
         "responses": {
           "200": {
-            "description": "Defect created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Defect"
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Defect created successfully"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1147,22 +1001,7 @@
         },
         "responses": {
           "200": {
-            "description": "Defect updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "defectId": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Defect updated successfully"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1187,22 +1026,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Defect deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "changes": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Defect deleted successfully"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1232,25 +1056,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A list of defect history entries",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/DefectHistoryEntry"
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "A list of defect history entries"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1285,6 +1091,75 @@
           "name": {
             "type": "string",
             "description": "The name of the project."
+          }
+        }
+      },
+      "Release": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "project": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "release_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "is_current": {
+            "type": "integer",
+            "description": "1 if current, 0 if not"
+          }
+        }
+      },
+      "ReleaseInput": {
+        "type": "object",
+        "required": [
+          "project",
+          "name",
+          "release_date"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "release_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "is_current": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ReleaseUpdateInput": {
+        "type": "object",
+        "required": [
+          "project",
+          "name",
+          "release_date"
+        ],
+        "properties": {
+          "project": {
+            "type": "string",
+            "description": "Project must be sent for is_current logic"
+          },
+          "name": {
+            "type": "string"
+          },
+          "release_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "is_current": {
+            "type": "boolean"
           }
         }
       },
@@ -1350,16 +1225,27 @@
           },
           "type": {
             "type": "string",
-            "nullable": true,
-            "description": "Type of the requirement (e.g., Story, Bug)."
+            "nullable": true
           },
           "tags": {
             "type": "string",
-            "nullable": true,
-            "description": "Comma-separated tags."
+            "nullable": true
           },
           "isCurrent": {
             "type": "boolean"
+          },
+          "releaseId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "releaseName": {
+            "type": "string",
+            "nullable": true
+          },
+          "releaseDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
           }
         }
       },
@@ -1408,13 +1294,15 @@
           },
           "key": {
             "type": "string",
-            "nullable": true,
-            "description": "Unique key for the item (e.g., from JIRA), used for import de-duplication."
+            "nullable": true
+          },
+          "release_id": {
+            "type": "integer",
+            "nullable": true
           },
           "existingRequirementGroupId": {
             "type": "integer",
-            "nullable": true,
-            "description": "ID of existing group if updating"
+            "nullable": true
           }
         }
       },
@@ -1462,6 +1350,10 @@
           },
           "isCurrent": {
             "type": "boolean"
+          },
+          "release_id": {
+            "type": "integer",
+            "nullable": true
           }
         }
       },
@@ -1489,6 +1381,10 @@
           },
           "tags": {
             "type": "string",
+            "nullable": true
+          },
+          "release_id": {
+            "type": "integer",
             "nullable": true
           }
         },
@@ -1634,8 +1530,8 @@
           "status": {
             "type": "string",
             "enum": [
-              "Under Developer",
-              "To Be Tested",
+              "Assigned to Developer",
+              "Assigned to Tester",
               "Done",
               "Closed"
             ]
@@ -1691,8 +1587,8 @@
           "status": {
             "type": "string",
             "enum": [
-              "Under Developer",
-              "To Be Tested",
+              "Assigned to Developer",
+              "Assigned to Tester",
               "Done"
             ]
           },
@@ -1735,8 +1631,8 @@
           "status": {
             "type": "string",
             "enum": [
-              "Under Developer",
-              "To Be Tested",
+              "Assigned to Developer",
+              "Assigned to Tester",
               "Done",
               "Closed"
             ],
@@ -1776,8 +1672,7 @@
           },
           "changes_summary": {
             "type": "string",
-            "nullable": true,
-            "description": "JSON string of changes"
+            "nullable": true
           },
           "comment": {
             "type": "string",
@@ -1793,16 +1688,13 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer",
-            "example": 15
+            "type": "integer"
           },
           "title": {
-            "type": "string",
-            "example": "UI Glitch on Login Page"
+            "type": "string"
           },
           "return_count": {
-            "type": "integer",
-            "example": 3
+            "type": "integer"
           }
         }
       },
@@ -1845,7 +1737,7 @@
     },
     "parameters": {
       "ProjectNamePath": {
-        "name": "projectName",
+        "name": "name",
         "in": "path",
         "required": true,
         "description": "Name of the project",
@@ -1885,6 +1777,15 @@
         "in": "path",
         "required": true,
         "description": "ID of the item",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "ReleaseIdPath": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "ID of the release",
         "schema": {
           "type": "integer"
         }

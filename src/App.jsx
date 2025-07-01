@@ -10,6 +10,8 @@ import AddNewRequirementModal from './components/AddNewRequirementModal';
 import AddProjectModal from './components/AddProjectModal';
 import EditRequirementModal from './components/EditRequirementModal';
 import ImportRequirementsModal from './components/ImportRequirementsModal';
+import AddReleaseModal from './components/AddReleaseModal';
+import EditReleaseModal from './components/EditReleaseModal';
 import NotesPage from './pages/NotesPage';
 import DefectsPage from './pages/DefectsPage';
 import SprintAnalysisPage from './pages/SprintAnalysisPage';
@@ -18,10 +20,14 @@ import ConfirmationModal from './components/ConfirmationModal';
 import Toast from './components/Toast';
 import SearchComponent from './components/SearchComponent';
 import UpdateStatusModal from './components/UpdateStatusModal';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js';
+import { Pie } from 'react-chartjs-2';
+
+ChartJS.register(ArcElement, Tooltip, Legend, Title);
 
 const API_BASE_URL = '/api';
 
-const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onOpenImportModal, onDeleteProjectRequest, selectedProject }) => {
+const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onOpenImportModal, onOpenAddReleaseModal, onOpenEditReleaseModal, onDeleteProjectRequest, selectedProject, hasProjects, hasAnyReleases }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -37,23 +43,10 @@ const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onOpenImportModal,
     };
   }, [menuRef]);
 
-  const handleAddProjectClick = () => {
-    onOpenAddProjectModal();
-    setIsOpen(false);
-  };
-
-  const handleAddRequirementClick = () => {
-    onOpenAddModal();
-    setIsOpen(false);
-  };
-  
-  const handleImportClick = () => {
-    onOpenImportModal();
-    setIsOpen(false);
-  };
-
-  const handleDeleteProjectClick = () => {
-    onDeleteProjectRequest();
+  const createHandler = (handler) => () => {
+    if (handler) {
+      handler();
+    }
     setIsOpen(false);
   };
 
@@ -64,17 +57,23 @@ const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onOpenImportModal,
       </button>
       {isOpen && (
         <div className="options-menu-dropdown">
-          <button onClick={handleAddProjectClick} className="options-menu-item">
+          <button onClick={createHandler(onOpenAddProjectModal)} className="options-menu-item">
             + Add Project
           </button>
-          <button onClick={handleAddRequirementClick} className="options-menu-item">
+          <button onClick={createHandler(onOpenAddModal)} className="options-menu-item">
             + Add Requirement
           </button>
-          <button onClick={handleImportClick} className="options-menu-item">
+           <button onClick={createHandler(onOpenAddReleaseModal)} className="options-menu-item" disabled={!hasProjects}>
+            + Add Release
+          </button>
+          <button onClick={createHandler(onOpenEditReleaseModal)} className="options-menu-item" disabled={!hasAnyReleases}>
+            +/- Edit/Delete Release
+          </button>
+          <button onClick={createHandler(onOpenImportModal)} className="options-menu-item">
             + Import Data
           </button>
           <button 
-            onClick={handleDeleteProjectClick} 
+            onClick={createHandler(onDeleteProjectRequest)} 
             className="options-menu-item danger" 
             disabled={!selectedProject}
             title={!selectedProject ? "Select a project to enable deletion" : "Delete the currently selected project"}
@@ -104,14 +103,71 @@ const SprintActivitiesPage = ({
   onOpenAddProjectModal,
   onOpenAddModal,
   onOpenImportModal,
+  onOpenAddReleaseModal,
+  onOpenEditReleaseModal,
   onDeleteProjectRequest,
   isSearching,
   displayableRequirements,
   onShowHistory,
   onEditRequirement,
   onDeleteRequirement,
-  onStatusUpdateRequest
+  onStatusUpdateRequest,
+  projectReleases,
+  allProcessedRequirements,
+  hasAnyReleases,
 }) => {
+  const [showCharts, setShowCharts] = useState(false);
+
+  const getChartData = (reqs) => {
+    if (!reqs || reqs.length === 0) return null;
+    let done = 0;
+    let notDone = 0;
+    reqs.forEach(req => {
+      if (req.currentStatusDetails.status === 'Done') {
+        done++;
+      } else {
+        notDone++;
+      }
+    });
+
+    if (done === 0 && notDone === 0) return null;
+
+    return {
+      labels: ['Done', 'To Be Tested'],
+      datasets: [{
+        data: [done, notDone],
+        backgroundColor: ['#28a745', '#ffc107'],
+        borderColor: ['#ffffff', '#ffffff'],
+        borderWidth: 1,
+      }],
+    };
+  };
+
+  const baseChartOptions = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top' },
+      title: { display: true, font: { size: 16 } },
+      tooltip: { callbacks: { label: (c) => `${c.label}: ${c.parsed} (${((c.parsed / c.dataset.data.reduce((a, b) => a + b, 0)) * 100).toFixed(1)}%)` } }
+    },
+  };
+
+  const sprintChartData = getChartData(displayableRequirements);
+  const sprintChartOptions = {
+    ...baseChartOptions,
+    plugins: { ...baseChartOptions.plugins, title: { ...baseChartOptions.plugins.title, text: `Current Sprint: ${selectedSprint}` } }
+  };
+  
+  const activeRelease = projectReleases.find(r => r.is_current);
+  const releaseRequirements = activeRelease 
+    ? allProcessedRequirements.filter(r => r.currentStatusDetails.releaseId === activeRelease.id)
+    : [];
+  const releaseChartData = getChartData(releaseRequirements);
+  const releaseChartOptions = {
+    ...baseChartOptions,
+    plugins: { ...baseChartOptions.plugins, title: { ...baseChartOptions.plugins.title, text: `Active Release: ${activeRelease?.name || 'N/A'}` } }
+  };
+
   return (
     <div className="main-content-area">
       <div className="selection-controls">
@@ -129,15 +185,43 @@ const SprintActivitiesPage = ({
           />
         </div>
         <div className="page-actions-group">
+           <button onClick={() => setShowCharts(p => !p)} className="defect-action-button" disabled={!selectedProject || !selectedSprint}>
+                {showCharts ? 'Hide' : 'Show'} Charts
+            </button>
           <OptionsMenu
             onOpenAddProjectModal={onOpenAddProjectModal}
             onOpenAddModal={onOpenAddModal}
             onOpenImportModal={onOpenImportModal}
+            onOpenAddReleaseModal={onOpenAddReleaseModal}
+            onOpenEditReleaseModal={onOpenEditReleaseModal}
             onDeleteProjectRequest={onDeleteProjectRequest}
             selectedProject={selectedProject}
+            hasProjects={projects.length > 0}
+            hasAnyReleases={hasAnyReleases}
           />
         </div>
       </div>
+
+      {showCharts && selectedProject && selectedSprint && (
+        <div className="charts-wrapper">
+          {sprintChartData && (
+            <div className="chart-container">
+              <Pie data={sprintChartData} options={sprintChartOptions} />
+            </div>
+          )}
+          {releaseChartData && (
+            <div className="chart-container">
+              <Pie data={releaseChartData} options={releaseChartOptions} />
+            </div>
+          )}
+          {!sprintChartData && !releaseChartData && (
+            <div className="chart-container" style={{ flexBasis: '100%', height: 'auto' }}>
+              <p>No data available for charts.</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {isSearching && displayableRequirements.length === 0 && (
         <div className="empty-column-message">No results found for your search.</div>
       )}
@@ -164,6 +248,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [allReleases, setAllReleases] = useState([]);
+  const [projectReleases, setProjectReleases] = useState([]);
+
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [requirementForHistory, setRequirementForHistory] = useState(null);
 
@@ -172,16 +259,18 @@ function App() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newReqFormState, setNewReqFormState] = useState({
-    project: '', requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false, type: '', tags: ''
+    project: '', requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false, type: '', tags: '', release_id: ''
   });
 
   const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toastInfo, setToastInfo] = useState({ message: null, type: 'success', key: null });
   const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
-  const [requirementToDelete, setRequirementToDelete] = useState(null);
-  const [isDeleteProjectConfirmModalOpen, setIsDeleteProjectConfirmModalOpen] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState(null);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [deleteType, setDeleteType] = useState('');
+
+  const [isAddReleaseModalOpen, setIsAddReleaseModalOpen] = useState(false);
+  const [isEditReleaseModalOpen, setIsEditReleaseModalOpen] = useState(false);
   
   const [isImportConfirmModalOpen, setIsImportConfirmModalOpen] = useState(false);
   const [importConfirmData, setImportConfirmData] = useState(null);
@@ -202,16 +291,10 @@ function App() {
     const projectParam = params.get('project');
     const sprintParam = params.get('sprint');
 
-    if (projectParam) {
-      setSelectedProject(projectParam);
-    }
-    if (sprintParam) {
-      setSelectedSprint(sprintParam);
-    }
-    if (projectParam || sprintParam) {
-      navigate(location.pathname, { replace: true });
-    }
-  }, [location.search, navigate]);
+    if (projectParam) setSelectedProject(projectParam);
+    if (sprintParam) setSelectedSprint(sprintParam);
+    if (projectParam || sprintParam) navigate(location.pathname, { replace: true });
+  }, []);
 
   const showMainMessage = useCallback((text, type = 'success') => {
     setToastInfo({ message: text, type: type, key: Date.now() });
@@ -220,6 +303,35 @@ function App() {
   const handleDismissToast = useCallback(() => {
     setToastInfo({ message: null, type: 'success', key: null });
   }, []);
+
+  const fetchAllProjectData = useCallback(async () => {
+    if (projects.length === 0) {
+        setAllReleases([]);
+        return;
+    }
+    try {
+        const releasePromises = projects.map(p => 
+            fetch(`${API_BASE_URL}/releases/${p}`).then(res => res.json())
+        );
+        const results = await Promise.all(releasePromises);
+        const all = results.flatMap(result => result.data || []);
+        setAllReleases(all);
+    } catch (error) {
+        showMainMessage('Could not load full release list.', 'error');
+    }
+  }, [projects, showMainMessage]);
+
+  useEffect(() => {
+    fetchAllProjectData();
+  }, [fetchAllProjectData]);
+
+  useEffect(() => {
+      if (selectedProject) {
+          setProjectReleases(allReleases.filter(r => r.project === selectedProject));
+      } else {
+          setProjectReleases([]);
+      }
+  }, [selectedProject, allReleases]);
 
   const fetchRequirementsOnly = useCallback(async () => {
     try {
@@ -266,9 +378,7 @@ function App() {
       const officialProjects = projectsResult.data || [];
       
       const freshRequirements = await fetchRequirementsOnly();
-
       const projectsFromData = getUniqueProjects(freshRequirements);
-
       const combinedProjects = Array.from(new Set([...officialProjects, ...projectsFromData])).sort();
       setProjects(combinedProjects);
 
@@ -281,11 +391,10 @@ function App() {
   }, [fetchRequirementsOnly]);
 
   useEffect(() => {
-    if (hasFetched.current) {
-        return;
+    if (!hasFetched.current) {
+      fetchData();
+      hasFetched.current = true;
     }
-    fetchData();
-    hasFetched.current = true;
   }, [fetchData]);
 
   useEffect(() => {
@@ -325,7 +434,7 @@ function App() {
     if (!editingRequirement) return;
 
     const { id, project, requirementUserIdentifier, currentStatusDetails } = editingRequirement;
-    const { name, comment, sprint, status, link, isBacklog, type, tags } = formData;
+    const { name, comment, sprint, status, link, isBacklog, type, tags, release_id } = formData;
     
     const newSprintValue = isBacklog ? 'Backlog' : `Sprint ${sprint}`;
 
@@ -351,6 +460,7 @@ function App() {
           link: link,
           type: type,
           tags: tags,
+          release_id: release_id || null,
           statusDate: new Date().toISOString().split('T')[0],
           existingRequirementGroupId: id
         };
@@ -359,13 +469,14 @@ function App() {
         });
         if (!activityResponse.ok) throw new Error('Failed to update status/sprint.');
       
-      } else if (comment !== currentStatusDetails.comment || link !== (currentStatusDetails.link || '') || type !== (currentStatusDetails.type || '') || tags !== (currentStatusDetails.tags || '')) {
+      } else if (comment !== currentStatusDetails.comment || link !== (currentStatusDetails.link || '') || type !== (currentStatusDetails.type || '') || tags !== (currentStatusDetails.tags || '') || (release_id || null) !== (currentStatusDetails.releaseId || null)) {
         somethingChanged = true;
         const updatePayload = {
           comment: comment,
           link: link,
           type: type,
           tags: tags,
+          release_id: release_id || null
         };
         const updateResponse = await fetch(`${API_BASE_URL}/activities/${currentStatusDetails.activityId}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -378,7 +489,7 @@ function App() {
         showMainMessage("Requirement updated successfully!", 'success');
         await fetchData();
       } else {
-        showMainMessage("No changes were made.", 'success');
+        showMainMessage("No changes were made.", 'info');
       }
 
     } catch (error) {
@@ -401,7 +512,7 @@ function App() {
     let initialProjectForModal = selectedProject || (projects.length > 0 ? projects[0] : '');
     setNewReqFormState({
         project: initialProjectForModal,
-        requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false, type: '', tags: ''
+        requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false, type: '', tags: '', release_id: ''
     });
     setIsAddModalOpen(true);
   }, [selectedProject, projects]);
@@ -414,7 +525,7 @@ function App() {
   }, []);
 
   const handleAddNewRequirement = useCallback(async () => {
-    const { project, requirementName, status, sprint, comment, link, isBacklog, type, tags } = newReqFormState;
+    const { project, requirementName, status, sprint, comment, link, isBacklog, type, tags, release_id } = newReqFormState;
     if (!project.trim() || !requirementName.trim() || !status.trim()) {
       showMainMessage("Project, Requirement Name, and Status are mandatory.", 'error');
       return;
@@ -431,6 +542,7 @@ function App() {
       link: link ? link.trim() : null,
       type: type ? type.trim() : null,
       tags: tags ? tags.trim() : null,
+      release_id: release_id || null,
       statusDate: new Date().toISOString().split('T')[0]
     };
 
@@ -479,11 +591,14 @@ function App() {
     setImportConfirmData(null);
   }, []);
 
-  const executeImport = useCallback(async (file, project, sprint) => {
+  const executeImport = useCallback(async (file, project, sprint, release_id) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('project', project);
     formData.append('sprint', sprint);
+    if (release_id) {
+      formData.append('release_id', release_id);
+    }
 
     try {
         const response = await fetch(`${API_BASE_URL}/import/requirements`, {
@@ -505,7 +620,7 @@ function App() {
     }
   }, [fetchData, showMainMessage, handleCloseImportModal]);
 
-  const handleValidateImport = useCallback(async (file, project, sprint) => {
+  const handleValidateImport = useCallback(async (file, project, sprint, release_id) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('project', project);
@@ -529,10 +644,10 @@ function App() {
         }
 
         if (duplicateCount > 0) {
-            setImportConfirmData({ file, project, sprint, ...result.data });
+            setImportConfirmData({ file, project, sprint, release_id, ...result.data });
             setIsImportConfirmModalOpen(true);
         } else {
-            executeImport(file, project, sprint);
+            executeImport(file, project, sprint, release_id);
         }
     } catch (error) {
         showMainMessage(`Validation Error: ${error.message}`, 'error');
@@ -542,74 +657,134 @@ function App() {
 
   const handleConfirmImport = () => {
     if (!importConfirmData) return;
-    const { file, project, sprint } = importConfirmData;
-    executeImport(file, project, sprint);
+    const { file, project, sprint, release_id } = importConfirmData;
+    executeImport(file, project, sprint, release_id);
     setIsImportConfirmModalOpen(false);
     setImportConfirmData(null);
   };
 
-  const handleDeleteRequirementRequest = useCallback((requirementGroupId, project, requirementName) => {
-    setRequirementToDelete({ id: requirementGroupId, name: requirementName, project: project });
+  const handleDeleteRequest = useCallback((type, item) => {
+    setDeleteType(type);
+    setItemToDelete(item);
     setIsDeleteConfirmModalOpen(true);
   }, []);
 
   const handleCancelDelete = useCallback(() => {
     setIsDeleteConfirmModalOpen(false);
-    setRequirementToDelete(null);
+    setItemToDelete(null);
+    setDeleteType('');
   }, []);
 
   const handleConfirmDelete = useCallback(async () => {
-    if (!requirementToDelete?.id) {
-        showMainMessage("Error: Requirement Group ID for deletion is missing.", "error");
-        setIsDeleteConfirmModalOpen(false); setRequirementToDelete(null); return;
+    if (!itemToDelete) return;
+
+    const currentItem = itemToDelete;
+    const currentType = deleteType;
+    let originalReleases = null;
+
+    setIsDeleteConfirmModalOpen(false);
+    setItemToDelete(null);
+    setDeleteType('');
+    
+    if (currentType === 'release') {
+      setIsEditReleaseModalOpen(false);
+      originalReleases = [...allReleases];
+      setAllReleases(prevReleases => prevReleases.filter(r => r.id !== currentItem.id));
     }
-    const { id, name, project } = requirementToDelete;
+
+    let url, successMessage, errorMessage;
+    switch (currentType) {
+        case 'requirement':
+            url = `${API_BASE_URL}/requirements/${encodeURIComponent(String(currentItem.id))}`;
+            successMessage = `Requirement '${currentItem.name}' deleted successfully.`;
+            errorMessage = `Failed to delete requirement ${currentItem.name}`;
+            break;
+        case 'project':
+            url = `${API_BASE_URL}/projects/${encodeURIComponent(currentItem.name)}`;
+            successMessage = `Project '${currentItem.name}' and all its data deleted successfully.`;
+            errorMessage = `Failed to delete project '${currentItem.name}'`;
+            break;
+        case 'release':
+            url = `${API_BASE_URL}/releases/${currentItem.id}`;
+            successMessage = `Release '${currentItem.name}' deleted successfully.`;
+            errorMessage = `Failed to delete release ${currentItem.name}`;
+            break;
+        default:
+            return;
+    }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/requirements/${encodeURIComponent(String(id))}`, { method: 'DELETE' });
-      if (!response.ok) { const errData = await response.json(); throw new Error(errData.error || `Failed to delete requirement ${name}`);}
-      showMainMessage(`Requirement '${name}' (Project: ${project}) deleted successfully.`, 'success');
-      await fetchData();
-    } catch (error) { showMainMessage(`Error: ${error.message}`, 'error');}
-    finally {
-        setIsDeleteConfirmModalOpen(false);
-        setRequirementToDelete(null);
-    }
-  }, [requirementToDelete, fetchData, showMainMessage]);
+        const response = await fetch(url, { method: 'DELETE' });
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || errorMessage);
+        }
 
-  const handleDeleteProjectRequest = useCallback(() => {
-    if (selectedProject) {
-      setProjectToDelete(selectedProject);
-      setIsDeleteProjectConfirmModalOpen(true);
-    }
-  }, [selectedProject]);
+        showMainMessage(successMessage, 'success');
 
-  const handleCancelProjectDelete = useCallback(() => {
-    setIsDeleteProjectConfirmModalOpen(false);
-    setProjectToDelete(null);
-  }, []);
-
-  const handleConfirmProjectDelete = useCallback(async () => {
-    if (!projectToDelete) {
-      showMainMessage("Error: No project selected for deletion.", "error");
-      return;
-    }
-    try {
-      const response = await fetch(`${API_BASE_URL}/projects/${encodeURIComponent(projectToDelete)}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || `Failed to delete project '${projectToDelete}'.`);
-      }
-      showMainMessage(`Project '${projectToDelete}' and all its data deleted successfully.`, 'success');
-      setSelectedProject('');
-      await fetchData();
+        if (currentType === 'project') {
+            setSelectedProject('');
+            await fetchData();
+        } else if (currentType === 'requirement') {
+            await fetchData();
+        }
+        
     } catch (error) {
-      showMainMessage(`Error: ${error.message}`, 'error');
-    } finally {
-      handleCancelProjectDelete();
+        showMainMessage(`Error: ${error.message}`, 'error');
+        if (currentType === 'release' && originalReleases) {
+            setAllReleases(originalReleases);
+        }
     }
-  }, [projectToDelete, fetchData, showMainMessage, handleCancelProjectDelete]);
+  }, [itemToDelete, deleteType, allReleases, fetchData, showMainMessage]);
+
+  const getDeleteConfirmationMessage = () => {
+    if (!itemToDelete) return '';
+    switch (deleteType) {
+        case 'requirement':
+            return `Are you sure you want to delete requirement "${itemToDelete.name}" (Project: ${itemToDelete.project}) and all its history? This action cannot be undone.`;
+        case 'project':
+            return `Are you sure you want to delete the project "${itemToDelete.name}"? This will also delete ALL associated requirements, releases, notes, defects, and retrospective items permanently. This action cannot be undone.`;
+        case 'release':
+            return `Are you sure you want to delete the release "${itemToDelete.name}"? This will not delete the requirements, but will unlink them from this release. This action cannot be undone.`;
+        default:
+            return 'Are you sure?';
+    }
+  };
+  
+  const handleAddRelease = async (releaseData) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/releases`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(releaseData)
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Failed to add release.');
+        }
+        showMainMessage('Release added successfully!', 'success');
+        await fetchAllProjectData();
+        setIsAddReleaseModalOpen(false);
+    } catch (error) {
+        showMainMessage(`Error: ${error.message}`, 'error');
+    }
+  };
+
+  const handleEditRelease = async (releaseData) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/releases/${releaseData.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(releaseData)
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Failed to update release.');
+        }
+        showMainMessage('Release updated successfully!', 'success');
+        await fetchAllProjectData();
+        await fetchData();
+        setIsEditReleaseModalOpen(false);
+    } catch (error) {
+        showMainMessage(`Error: ${error.message}`, 'error');
+    }
+  };
 
   useEffect(() => {
     if (isHistoryModalOpen && requirementForHistory) {
@@ -732,6 +907,9 @@ function App() {
       sprint: requirement.currentStatusDetails.sprint,
       comment: comment,
       link: requirement.currentStatusDetails.link,
+      type: requirement.currentStatusDetails.type,
+      tags: requirement.currentStatusDetails.tags,
+      release_id: requirement.currentStatusDetails.releaseId,
       statusDate: new Date().toISOString().split('T')[0],
       existingRequirementGroupId: requirement.id
     };
@@ -759,12 +937,6 @@ function App() {
 
   return (
     <div className="app-container">
-      <style>{`
-        select {
-          border: 1px solid #ccc;
-          border-radius: 4px;
-        }
-      `}</style>
       <AppNavigationBar />
       <Toast key={toastInfo.key} message={toastInfo.message} type={toastInfo.type} onDismiss={handleDismissToast} />
       <Routes>
@@ -787,13 +959,18 @@ function App() {
               onOpenAddProjectModal={handleOpenAddProjectModal}
               onOpenAddModal={handleOpenAddModal}
               onOpenImportModal={handleOpenImportModal}
-              onDeleteProjectRequest={handleDeleteProjectRequest}
+              onOpenAddReleaseModal={() => setIsAddReleaseModalOpen(true)}
+              onOpenEditReleaseModal={() => setIsEditReleaseModalOpen(true)}
+              onDeleteProjectRequest={() => handleDeleteRequest('project', { name: selectedProject })}
               isSearching={isSearching}
               displayableRequirements={displayableRequirements}
               onShowHistory={handleShowHistory}
               onEditRequirement={handleOpenEditModal}
-              onDeleteRequirement={handleDeleteRequirementRequest}
+              onDeleteRequirement={(id, project, name) => handleDeleteRequest('requirement', { id, project, name })}
               onStatusUpdateRequest={handleStatusUpdateRequest}
+              projectReleases={projectReleases}
+              allProcessedRequirements={allProcessedRequirements}
+              hasAnyReleases={allReleases.length > 0}
             />
           } 
         />
@@ -802,52 +979,15 @@ function App() {
         <Route path="/notes" element={<NotesPage projects={projects} apiBaseUrl={API_BASE_URL} showMessage={showMainMessage} />} />
       </Routes>
       <HistoryModal requirement={requirementForHistory} isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} onSaveHistoryEntry={handleSaveHistoryEntry} />
-      <AddNewRequirementModal isOpen={isAddModalOpen} onClose={handleCloseAddModal} formData={newReqFormState} onFormChange={handleNewReqFormChange} onSubmit={handleAddNewRequirement} projects={projects} />
-      <AddProjectModal
-        isOpen={isAddProjectModalOpen}
-        onClose={handleCloseAddProjectModal}
-        onAddProject={handleAddNewProject}
-      />
-      <ImportRequirementsModal
-        isOpen={isImportModalOpen}
-        onClose={handleCloseImportModal}
-        onImport={handleValidateImport}
-        projects={projects}
-      />
-      <ConfirmationModal
-        isOpen={isImportConfirmModalOpen}
-        onClose={() => setIsImportConfirmModalOpen(false)}
-        onConfirm={handleConfirmImport}
-        title="Confirm Import"
-        message={`The file contains ${importConfirmData?.newCount || 0} new item(s) and ${importConfirmData?.duplicateCount || 0} item(s) that already exist (based on 'Key'). Existing items will be imported with a modified name (e.g., 'Item Name (1)'). Do you want to proceed?`}
-      />
-      <EditRequirementModal
-        isOpen={isEditModalOpen}
-        onClose={handleCloseEditModal}
-        onSave={handleSaveRequirementEdit}
-        requirement={editingRequirement}
-      />
-      <UpdateStatusModal
-        isOpen={isUpdateStatusModalOpen}
-        onClose={handleCloseUpdateStatusModal}
-        onSave={handleConfirmStatusUpdate}
-        requirement={statusUpdateInfo.requirement}
-        newStatus={statusUpdateInfo.newStatus}
-      />
-      <ConfirmationModal
-        isOpen={isDeleteConfirmModalOpen}
-        onClose={handleCancelDelete}
-        onConfirm={handleConfirmDelete}
-        title="Confirm Requirement Deletion"
-        message={`Are you sure you want to delete requirement "${requirementToDelete?.name}" (Project: ${requirementToDelete?.project}) and all its history? This action cannot be undone.`}
-      />
-      <ConfirmationModal
-        isOpen={isDeleteProjectConfirmModalOpen}
-        onClose={handleCancelProjectDelete}
-        onConfirm={handleConfirmProjectDelete}
-        title="Confirm Project Deletion"
-        message={`Are you sure you want to delete the project "${projectToDelete}"? This will also delete ALL associated requirements, notes, defects, and retrospective items permanently. This action cannot be undone.`}
-      />
+      <AddNewRequirementModal isOpen={isAddModalOpen} onClose={handleCloseAddModal} formData={newReqFormState} onFormChange={handleNewReqFormChange} onSubmit={handleAddNewRequirement} projects={projects} releases={projectReleases} />
+      <AddProjectModal isOpen={isAddProjectModalOpen} onClose={handleCloseAddProjectModal} onAddProject={handleAddNewProject} />
+      <ImportRequirementsModal isOpen={isImportModalOpen} onClose={handleCloseImportModal} onImport={handleValidateImport} projects={projects} releases={projectReleases} />
+      <AddReleaseModal isOpen={isAddReleaseModalOpen} onClose={() => setIsAddReleaseModalOpen(false)} onAdd={handleAddRelease} projects={projects} currentProject={selectedProject} />
+      <EditReleaseModal isOpen={isEditReleaseModalOpen} onClose={() => setIsEditReleaseModalOpen(false)} onSave={handleEditRelease} onDelete={(release) => handleDeleteRequest('release', release)} releases={allReleases} projects={projects} currentProject={selectedProject} />
+      <ConfirmationModal isOpen={isImportConfirmModalOpen} onClose={() => setIsImportConfirmModalOpen(false)} onConfirm={handleConfirmImport} title="Confirm Import" message={`The file contains ${importConfirmData?.newCount || 0} new item(s) and ${importConfirmData?.duplicateCount || 0} item(s) that already exist (based on 'Key'). Existing items will be imported with a modified name (e.g., 'Item Name (1)'). Do you want to proceed?`} />
+      <EditRequirementModal isOpen={isEditModalOpen} onClose={handleCloseEditModal} onSave={handleSaveRequirementEdit} requirement={editingRequirement} releases={projectReleases} />
+      <UpdateStatusModal isOpen={isUpdateStatusModalOpen} onClose={handleCloseUpdateStatusModal} onSave={handleConfirmStatusUpdate} requirement={statusUpdateInfo.requirement} newStatus={statusUpdateInfo.newStatus} />
+      <ConfirmationModal isOpen={isDeleteConfirmModalOpen} onClose={handleCancelDelete} onConfirm={handleConfirmDelete} title={`Confirm ${deleteType.charAt(0).toUpperCase() + deleteType.slice(1)} Deletion`} message={getDeleteConfirmationMessage()} />
     </div>
   );
 }

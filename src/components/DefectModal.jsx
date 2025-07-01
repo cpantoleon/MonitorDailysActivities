@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import DatePicker from 'react-datepicker';
-import Select from 'react-select'; // 1. Import react-select
+import Select from 'react-select';
 import "react-datepicker/dist/react-datepicker.css";
 
 const API_BASE_URL = '/api';
-const DEFECT_STATUSES = ['Under Developer', 'To Be Tested', 'Done'];
+const DEFECT_STATUSES = ['Assigned to Developer', 'Assigned to Tester', 'Done'];
 
 const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelectedProject, allRequirements = [] }) => {
   
@@ -44,7 +44,7 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
           area: defect.area || '',
           status: defect.status || DEFECT_STATUSES[0],
           link: defect.link || '',
-          created_date: defect.created_date ? new Date(defect.created_date) : new Date(),
+          created_date: defect.created_date ? new Date(defect.created_date + 'T00:00:00') : new Date(),
           comment: '',
           linkedRequirementGroupIds: defect.linkedRequirements ? defect.linkedRequirements.map(r => r.groupId) : [],
         });
@@ -99,11 +99,9 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // 3. New handler for react-select components
   const handleSelectChange = (name, selectedOption) => {
     const value = selectedOption ? selectedOption.value : '';
     if (name === 'project') {
-      // Preserve special logic for project change
       setFormData(prev => ({
         ...getInitialFormState(value),
         project: value,
@@ -162,7 +160,6 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
 
   if (!isOpen) return null;
 
-  // 2. Add the custom styles object
   const customSelectStyles = {
     menuList: (base) => ({
       ...base,
@@ -175,7 +172,6 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
     }),
   };
   
-  // 4. Prepare options in the { value, label } format
   const projectOptions = projects.map(p => ({ value: p, label: p }));
   const areaOptions = modalAreas.map(pa => ({ value: pa, label: pa }));
   const statusOptionsList = defect ? [...DEFECT_STATUSES, 'Closed'] : DEFECT_STATUSES;
@@ -186,7 +182,6 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
       <div className="add-new-modal-content" style={{ maxWidth: '800px' }}>
         <h2>{defect ? 'Edit Defect' : 'Create New Defect'}</h2>
         <form onSubmit={handleSubmit}>
-          {/* 5. Replace <select> with <Select> */}
           <div className="form-group">
             <label htmlFor="defect-project">Project:</label>
             <Select

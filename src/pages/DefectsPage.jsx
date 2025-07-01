@@ -15,8 +15,8 @@ ChartJS.register(ArcElement, Tooltip, Legend, Title, BarElement, CategoryScale, 
 
 const API_BASE_URL = '/api';
 const DEFECT_STATUS_COLUMNS = [
-  { title: 'Under Developer', status: 'Under Developer' },
-  { title: 'To Be Tested', status: 'To Be Tested' },
+  { title: 'Assigned to Developer', status: 'Assigned to Developer' },
+  { title: 'Assigned to Tester', status: 'Assigned to Tester' },
   { title: 'Done', status: 'Done' },
 ];
 

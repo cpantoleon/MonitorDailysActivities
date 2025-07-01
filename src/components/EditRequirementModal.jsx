@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Select from 'react-select';
+import Tooltip from './Tooltip';
 
-const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
+const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases }) => {
   const [formData, setFormData] = useState({
     name: '',
     comment: '',
@@ -11,6 +12,7 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
     isBacklog: false,
     type: '',
     tags: '',
+    release_id: '',
   });
 
   const sprintNumberOptions = Array.from({ length: 20 }, (_, i) => ({
@@ -20,6 +22,10 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
   
   const statusOptions = ['To Do', 'Scenarios created', 'Under testing', 'Done'].map(s => ({ value: s, label: s }));
   const typeOptions = ['Change Request', 'Task', 'Bug', 'Story'].map(t => ({ value: t, label: t }));
+  const releaseOptions = releases.map(r => ({
+    value: r.id,
+    label: `${r.name} ${r.is_current ? '(Current)' : ''}`
+  }));
 
   useEffect(() => {
     if (requirement) {
@@ -40,6 +46,7 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
         isBacklog: isBacklog,
         type: requirement.currentStatusDetails?.type || '',
         tags: requirement.currentStatusDetails?.tags || '',
+        release_id: requirement.currentStatusDetails?.releaseId || '',
       });
     }
   }, [requirement]);
@@ -72,6 +79,13 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
       zIndex: 9999 
     }),
   };
+
+  const releaseTooltipContent = (
+    <>
+      <strong>Assign to a Release</strong>
+      <p>Associate this requirement with a release. The release marked '(Current)' is the one actively designated for the project.</p>
+    </>
+  );
 
   return (
     <div className="add-new-modal-overlay">
@@ -152,6 +166,24 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
               styles={customSelectStyles}
               menuPortalTarget={document.body}
               required
+            />
+          </div>
+          <div className="form-group">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <label htmlFor="editReqRelease" className="optional-label" style={{marginBottom: 0}}>Release:</label>
+              <Tooltip content={releaseTooltipContent} className="release" />
+            </div>
+            <Select
+              id="editReqRelease"
+              name="release_id"
+              value={releaseOptions.find(opt => opt.value === formData.release_id)}
+              onChange={(option) => handleSelectChange('release_id', option)}
+              options={releaseOptions}
+              isDisabled={releases.length === 0}
+              styles={customSelectStyles}
+              menuPortalTarget={document.body}
+              placeholder={releases.length === 0 ? "-- No releases for this project --" : "-- Select a Release --"}
+              isClearable
             />
           </div>
           <div className="form-group">

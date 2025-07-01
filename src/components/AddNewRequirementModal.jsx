@@ -1,7 +1,8 @@
 import React from 'react';
 import Select from 'react-select';
+import Tooltip from './Tooltip';
 
-const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSubmit, projects }) => {
+const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSubmit, projects, releases }) => {
   if (!isOpen) return null;
 
   const projectOptions = projects.map(p => ({ value: p, label: p }));
@@ -10,6 +11,10 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
   const sprintNumberOptions = Array.from({ length: 20 }, (_, i) => ({
     value: `${i + 1}`,
     label: `${i + 1}`
+  }));
+  const releaseOptions = releases.map(r => ({
+    value: r.id,
+    label: `${r.name} ${r.is_current ? '(Current)' : ''}`
   }));
 
   const handleSelectChange = (name, selectedOption) => {
@@ -27,6 +32,13 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
       zIndex: 9999 
     }),
   };
+
+  const releaseTooltipContent = (
+    <>
+      <strong>Assign to a Release</strong>
+      <p>Associate this requirement with a release. The release marked '(Current)' is the one actively designated for the project.</p>
+    </>
+  );
 
   return (
     <div className="add-new-modal-overlay">
@@ -117,6 +129,25 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
             <label htmlFor="isBacklogCheckbox" className="checkbox-label optional-label">
               Assign to Backlog
             </label>
+          </div>
+
+          <div className="form-group">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <label htmlFor="newReqRelease" className="optional-label" style={{marginBottom: 0}}>Release:</label>
+              <Tooltip content={releaseTooltipContent} className="release" />
+            </div>
+            <Select
+              id="newReqRelease"
+              name="release_id"
+              value={releaseOptions.find(opt => opt.value === formData.release_id)}
+              onChange={(option) => handleSelectChange('release_id', option)}
+              options={releaseOptions}
+              isDisabled={!formData.project || releases.length === 0}
+              styles={customSelectStyles}
+              menuPortalTarget={document.body}
+              placeholder={releases.length === 0 ? "-- No releases for this project --" : "-- Select a Release --"}
+              isClearable
+            />
           </div>
 
           <div className="form-group">

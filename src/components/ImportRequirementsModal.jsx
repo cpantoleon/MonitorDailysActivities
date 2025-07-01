@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Select from 'react-select';
-import Tooltip from './Tooltip'; // Import the new reusable component
+import Tooltip from './Tooltip';
 
-const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects }) => {
+const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [targetProject, setTargetProject] = useState('');
   const [targetSprint, setTargetSprint] = useState('1');
+  const [targetReleaseId, setTargetReleaseId] = useState('');
   const [isBacklog, setIsBacklog] = useState(false);
   const [error, setError] = useState('');
 
@@ -15,6 +16,15 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects }) => {
   }));
 
   const projectOptions = projects.map(p => ({ value: p, label: p }));
+  const releaseOptions = releases.map(r => ({
+    value: r.id,
+    label: `${r.name} ${r.is_current ? '(Current)' : ''}`
+  }));
+
+  // Reset project-specific fields when project changes
+  useEffect(() => {
+    setTargetReleaseId('');
+  }, [targetProject]);
 
   const handleFileChange = (e) => {
     setSelectedFile(e.target.files[0]);
@@ -32,7 +42,7 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects }) => {
     }
     
     const sprintValue = isBacklog ? 'Backlog' : `Sprint ${targetSprint}`;
-    onImport(selectedFile, targetProject, sprintValue);
+    onImport(selectedFile, targetProject, sprintValue, targetReleaseId);
   };
 
   const handleSprintChange = (selectedOption) => {
@@ -41,6 +51,10 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects }) => {
 
   const handleProjectChange = (selectedOption) => {
     setTargetProject(selectedOption ? selectedOption.value : '');
+  };
+
+  const handleReleaseChange = (selectedOption) => {
+    setTargetReleaseId(selectedOption ? selectedOption.value : '');
   };
 
   const customSelectStyles = {
@@ -123,6 +137,20 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects }) => {
           <label htmlFor="importIsBacklog" className="checkbox-label optional-label">
             Assign to Backlog
           </label>
+        </div>
+        <div className="form-group">
+            <label htmlFor="importRelease" className="optional-label">Assign to Release (Optional):</label>
+            <Select
+              id="importRelease"
+              value={releaseOptions.find(opt => opt.value === targetReleaseId)}
+              onChange={handleReleaseChange}
+              options={releaseOptions}
+              isDisabled={!targetProject || releases.length === 0}
+              styles={customSelectStyles}
+              menuPortalTarget={document.body}
+              placeholder={!targetProject ? "-- Select a project first --" : (releases.length === 0 ? "-- No releases for this project --" : "-- Select a Release --")}
+              isClearable
+            />
         </div>
         <div className="modal-actions">
           <button onClick={handleImport} className="modal-button-save">Import</button>
