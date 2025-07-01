@@ -28,7 +28,9 @@ const SearchComponent = ({ query, onQueryChange, onSearch, onClear, onSuggestion
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleSearchClick();
+      if (query && query.trim() !== '') {
+        handleSearchClick();
+      }
     }
   };
 
@@ -49,7 +51,14 @@ const SearchComponent = ({ query, onQueryChange, onSearch, onClear, onSuggestion
           className="search-input"
           autoComplete="off"
         />
-        <button type="button" onClick={handleSearchClick} className="search-button">Search</button>
+        <button 
+          type="button" 
+          onClick={handleSearchClick} 
+          className="search-button" 
+          disabled={!query || query.trim() === ''}
+        >
+          Search
+        </button>
         <button type="button" onClick={handleClearClick} className="search-clear-button">Clear</button>
       </div>
       {showSuggestions && suggestions && suggestions.length > 0 && (

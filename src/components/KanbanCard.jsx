@@ -8,7 +8,7 @@ const KanbanCard = React.memo(({
   onDeleteRequirement,
   onDragStart
 }) => {
-  const { comment, link } = requirement.currentStatusDetails;
+  const { comment, link, type, tags } = requirement.currentStatusDetails;
   const navigate = useNavigate();
 
   const handleDefectClick = (project) => {
@@ -18,18 +18,14 @@ const KanbanCard = React.memo(({
   const handleDragStart = (e, req) => {
     onDragStart(e, req);
     
-    // Save a reference to the element, as 'e.currentTarget' will be nullified in the timeout.
     const draggedElement = e.currentTarget;
     
-    // Use a timeout to allow the browser to create its drag preview
-    // before we apply the 'dragging' style to the original element.
     setTimeout(() => {
       draggedElement.classList.add('dragging');
     }, 0);
   };
 
   const handleDragEnd = (e) => {
-    // Clean up by removing the class when the drag operation ends.
     e.currentTarget.classList.remove('dragging');
   };
 
@@ -44,6 +40,20 @@ const KanbanCard = React.memo(({
         <strong>{requirement.requirementUserIdentifier}</strong>
 
         <div className="kanban-card-details">
+          {type && (
+            <p className="card-detail-item">
+              <span className="detail-label">Type:</span>
+              <span className="detail-value">{type}</span>
+            </p>
+          )}
+
+          {tags && (
+            <p className="card-detail-item">
+              <span className="detail-label">Tags:</span>
+              <span className="detail-value">{tags}</span>
+            </p>
+          )}
+
           {comment && (
             <p className="card-detail-item">
               <span className="detail-label">Comment:</span>
@@ -78,7 +88,7 @@ const KanbanCard = React.memo(({
             </div>
           )}
 
-          {!comment && !link && (!requirement.linkedDefects || requirement.linkedDefects.length === 0) && (
+          {!comment && !link && !type && !tags && (!requirement.linkedDefects || requirement.linkedDefects.length === 0) && (
             <p className="card-detail-item-empty">No additional details.</p>
           )}
         </div>

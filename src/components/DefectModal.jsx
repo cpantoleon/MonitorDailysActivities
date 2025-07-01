@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import DatePicker from 'react-datepicker';
+import Select from 'react-select'; // 1. Import react-select
 import "react-datepicker/dist/react-datepicker.css";
 
 const API_BASE_URL = '/api';
@@ -62,7 +63,6 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
     
     const fetchAreasForProject = async (project) => {
       try {
-        // NOTE: The server now needs to handle `statusType=all`
         const res = await fetch(`${API_BASE_URL}/defects/${project}?statusType=all`);
         if (!res.ok) throw new Error('Failed to fetch areas');
         const result = await res.json();
@@ -96,7 +96,14 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // 3. New handler for react-select components
+  const handleSelectChange = (name, selectedOption) => {
+    const value = selectedOption ? selectedOption.value : '';
     if (name === 'project') {
+      // Preserve special logic for project change
       setFormData(prev => ({
         ...getInitialFormState(value),
         project: value,
@@ -154,19 +161,46 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
   };
 
   if (!isOpen) return null;
-  const statusOptions = defect ? [...DEFECT_STATUSES, 'Closed'] : DEFECT_STATUSES;
+
+  // 2. Add the custom styles object
+  const customSelectStyles = {
+    menuList: (base) => ({
+      ...base,
+      maxHeight: '180px',
+      overflowY: 'auto',
+    }),
+    menuPortal: (base) => ({ 
+      ...base, 
+      zIndex: 9999 
+    }),
+  };
+  
+  // 4. Prepare options in the { value, label } format
+  const projectOptions = projects.map(p => ({ value: p, label: p }));
+  const areaOptions = modalAreas.map(pa => ({ value: pa, label: pa }));
+  const statusOptionsList = defect ? [...DEFECT_STATUSES, 'Closed'] : DEFECT_STATUSES;
+  const statusSelectOptions = statusOptionsList.map(s => ({ value: s, label: s }));
 
   return (
     <div className="add-new-modal-overlay">
       <div className="add-new-modal-content" style={{ maxWidth: '800px' }}>
         <h2>{defect ? 'Edit Defect' : 'Create New Defect'}</h2>
         <form onSubmit={handleSubmit}>
+          {/* 5. Replace <select> with <Select> */}
           <div className="form-group">
             <label htmlFor="defect-project">Project:</label>
-            <select id="defect-project" name="project" value={formData.project} onChange={handleChange} required disabled={!!defect}>
-              <option value="">-- Select Project --</option>
-              {projects.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
+            <Select
+              id="defect-project"
+              name="project"
+              value={projectOptions.find(opt => opt.value === formData.project)}
+              onChange={(option) => handleSelectChange('project', option)}
+              options={projectOptions}
+              styles={customSelectStyles}
+              menuPortalTarget={document.body}
+              placeholder="-- Select Project --"
+              required
+              isDisabled={!!defect}
+            />
           </div>
           <div className="form-group">
             <label htmlFor="defect-title">Title:</label>
@@ -181,10 +215,17 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
             {isCustomArea ? (
               <input type="text" id="defect-area" name="area" value={formData.area} onChange={handleChange} placeholder="Enter new area description" required />
             ) : (
-              <select id="defect-area" name="area" value={formData.area} onChange={handleChange} required>
-                <option value="">-- Select Area --</option>
-                {modalAreas.map(pa => <option key={pa} value={pa}>{pa}</option>)}
-              </select>
+              <Select
+                id="defect-area"
+                name="area"
+                value={areaOptions.find(opt => opt.value === formData.area)}
+                onChange={(option) => handleSelectChange('area', option)}
+                options={areaOptions}
+                styles={customSelectStyles}
+                menuPortalTarget={document.body}
+                placeholder="-- Select Area --"
+                required
+              />
             )}
           </div>
           <div className="form-group new-project-toggle">
@@ -193,9 +234,16 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
           </div>
           <div className="form-group">
             <label htmlFor="defect-status">Status:</label>
-            <select id="defect-status" name="status" value={formData.status} onChange={handleChange} required>
-              {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <Select
+              id="defect-status"
+              name="status"
+              value={statusSelectOptions.find(opt => opt.value === formData.status)}
+              onChange={(option) => handleSelectChange('status', option)}
+              options={statusSelectOptions}
+              styles={customSelectStyles}
+              menuPortalTarget={document.body}
+              required
+            />
           </div>
           <div className="form-group">
             <label htmlFor="defect-link" className="optional-label">Link:</label>

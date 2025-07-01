@@ -9,12 +9,17 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
     status: '',
     link: '',
     isBacklog: false,
+    type: '',
+    tags: '',
   });
 
   const sprintNumberOptions = Array.from({ length: 20 }, (_, i) => ({
     value: `${i + 1}`,
     label: `${i + 1}`
   }));
+  
+  const statusOptions = ['To Do', 'Scenarios created', 'Under testing', 'Done'].map(s => ({ value: s, label: s }));
+  const typeOptions = ['Change Request', 'Task', 'Bug', 'Story'].map(t => ({ value: t, label: t }));
 
   useEffect(() => {
     if (requirement) {
@@ -33,6 +38,8 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
         status: requirement.currentStatusDetails?.status || '',
         link: requirement.currentStatusDetails?.link || '',
         isBacklog: isBacklog,
+        type: requirement.currentStatusDetails?.type || '',
+        tags: requirement.currentStatusDetails?.tags || '',
       });
     }
   }, [requirement]);
@@ -43,8 +50,8 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
     setFormData(prev => ({ ...prev, [name]: val }));
   };
   
-  const handleSprintChange = (selectedOption) => {
-    setFormData(prev => ({...prev, sprint: selectedOption.value }));
+  const handleSelectChange = (name, selectedOption) => {
+    setFormData(prev => ({...prev, [name]: selectedOption ? selectedOption.value : '' }));
   };
 
   const handleSubmit = (e) => {
@@ -54,13 +61,15 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
 
   if (!isOpen || !requirement) return null;
 
-  const statusOptions = ['To Do', 'Scenarios created', 'Under testing', 'Done'];
-
   const customSelectStyles = {
     menuList: (base) => ({
       ...base,
       maxHeight: '180px',
       overflowY: 'auto',
+    }),
+    menuPortal: (base) => ({ 
+      ...base, 
+      zIndex: 9999 
     }),
   };
 
@@ -81,6 +90,20 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
             />
           </div>
           <div className="form-group">
+            <label htmlFor="editReqType" className="optional-label">Type:</label>
+            <Select
+              id="editReqType"
+              name="type"
+              value={typeOptions.find(opt => opt.value === formData.type)}
+              onChange={(option) => handleSelectChange('type', option)}
+              options={typeOptions}
+              styles={customSelectStyles}
+              menuPortalTarget={document.body}
+              placeholder="-- Select Type --"
+              isClearable
+            />
+          </div>
+          <div className="form-group">
             <label htmlFor="editReqComment" className="optional-label">Current Comment:</label>
             <textarea
               id="editReqComment"
@@ -97,10 +120,11 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
               id="editReqSprint"
               name="sprint"
               value={sprintNumberOptions.find(opt => opt.value === formData.sprint)}
-              onChange={handleSprintChange}
+              onChange={(option) => handleSelectChange('sprint', option)}
               options={sprintNumberOptions}
               isDisabled={formData.isBacklog}
               styles={customSelectStyles}
+              menuPortalTarget={document.body}
             />
           </div>
 
@@ -119,15 +143,27 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement }) => {
 
           <div className="form-group">
             <label htmlFor="editReqStatus">Status:</label>
-            <select
+            <Select
               id="editReqStatus"
               name="status"
-              value={formData.status}
-              onChange={handleChange}
+              value={statusOptions.find(opt => opt.value === formData.status)}
+              onChange={(option) => handleSelectChange('status', option)}
+              options={statusOptions}
+              styles={customSelectStyles}
+              menuPortalTarget={document.body}
               required
-            >
-              {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="editReqTags" className="optional-label">Tags:</label>
+            <input
+              type="text"
+              id="editReqTags"
+              name="tags"
+              value={formData.tags}
+              onChange={handleChange}
+              placeholder="e.g., Sprint 4, PreA Tools"
+            />
           </div>
           <div className="form-group">
             <label htmlFor="editReqLink" className="optional-label">Link (e.g., JIRA):</label>

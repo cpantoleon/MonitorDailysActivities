@@ -9,6 +9,7 @@ import HistoryModal from './components/HistoryModal';
 import AddNewRequirementModal from './components/AddNewRequirementModal';
 import AddProjectModal from './components/AddProjectModal';
 import EditRequirementModal from './components/EditRequirementModal';
+import ImportRequirementsModal from './components/ImportRequirementsModal';
 import NotesPage from './pages/NotesPage';
 import DefectsPage from './pages/DefectsPage';
 import SprintAnalysisPage from './pages/SprintAnalysisPage';
@@ -20,7 +21,7 @@ import UpdateStatusModal from './components/UpdateStatusModal';
 
 const API_BASE_URL = '/api';
 
-const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onDeleteProjectRequest, selectedProject }) => {
+const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onOpenImportModal, onDeleteProjectRequest, selectedProject }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -45,6 +46,11 @@ const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onDeleteProjectReq
     onOpenAddModal();
     setIsOpen(false);
   };
+  
+  const handleImportClick = () => {
+    onOpenImportModal();
+    setIsOpen(false);
+  };
 
   const handleDeleteProjectClick = () => {
     onDeleteProjectRequest();
@@ -63,6 +69,9 @@ const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onDeleteProjectReq
           </button>
           <button onClick={handleAddRequirementClick} className="options-menu-item">
             + Add Requirement
+          </button>
+          <button onClick={handleImportClick} className="options-menu-item">
+            + Import Data
           </button>
           <button 
             onClick={handleDeleteProjectClick} 
@@ -94,6 +103,7 @@ const SprintActivitiesPage = ({
   searchSuggestions,
   onOpenAddProjectModal,
   onOpenAddModal,
+  onOpenImportModal,
   onDeleteProjectRequest,
   isSearching,
   displayableRequirements,
@@ -108,9 +118,7 @@ const SprintActivitiesPage = ({
         <div className="selection-group-container">
           <ProjectSelector projects={projects} selectedProject={selectedProject} onSelectProject={onSelectProject} />
           <SprintSelector sprints={availableSprints} selectedSprint={selectedSprint} onSelectSprint={onSelectSprint} disabled={!selectedProject || projects.length === 0} />
-        </div>
-        <div className="page-actions-group">
-           <SearchComponent
+          <SearchComponent
             query={requirementQuery}
             onQueryChange={onQueryChange}
             onSearch={onSearch}
@@ -119,9 +127,12 @@ const SprintActivitiesPage = ({
             suggestions={searchSuggestions}
             placeholder="Search requirements..."
           />
+        </div>
+        <div className="page-actions-group">
           <OptionsMenu
             onOpenAddProjectModal={onOpenAddProjectModal}
             onOpenAddModal={onOpenAddModal}
+            onOpenImportModal={onOpenImportModal}
             onDeleteProjectRequest={onDeleteProjectRequest}
             selectedProject={selectedProject}
           />
@@ -161,15 +172,19 @@ function App() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newReqFormState, setNewReqFormState] = useState({
-    project: '', requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false
+    project: '', requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false, type: '', tags: ''
   });
 
   const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toastInfo, setToastInfo] = useState({ message: null, type: 'success', key: null });
   const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
   const [requirementToDelete, setRequirementToDelete] = useState(null);
   const [isDeleteProjectConfirmModalOpen, setIsDeleteProjectConfirmModalOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState(null);
+  
+  const [isImportConfirmModalOpen, setIsImportConfirmModalOpen] = useState(false);
+  const [importConfirmData, setImportConfirmData] = useState(null);
 
   const [isSearching, setIsSearching] = useState(false);
   const [requirementQuery, setRequirementQuery] = useState('');
@@ -310,7 +325,7 @@ function App() {
     if (!editingRequirement) return;
 
     const { id, project, requirementUserIdentifier, currentStatusDetails } = editingRequirement;
-    const { name, comment, sprint, status, link, isBacklog } = formData;
+    const { name, comment, sprint, status, link, isBacklog, type, tags } = formData;
     
     const newSprintValue = isBacklog ? 'Backlog' : `Sprint ${sprint}`;
 
@@ -334,6 +349,8 @@ function App() {
           sprint: newSprintValue,
           comment: comment,
           link: link,
+          type: type,
+          tags: tags,
           statusDate: new Date().toISOString().split('T')[0],
           existingRequirementGroupId: id
         };
@@ -342,20 +359,19 @@ function App() {
         });
         if (!activityResponse.ok) throw new Error('Failed to update status/sprint.');
       
-      } else if (comment !== currentStatusDetails.comment || link !== (currentStatusDetails.link || '')) {
+      } else if (comment !== currentStatusDetails.comment || link !== (currentStatusDetails.link || '') || type !== (currentStatusDetails.type || '') || tags !== (currentStatusDetails.tags || '')) {
         somethingChanged = true;
-        const updatePayload = {};
-        if (comment !== currentStatusDetails.comment) {
-            updatePayload.comment = comment;
-        }
-        if (link !== (currentStatusDetails.link || '')) {
-            updatePayload.link = link;
-        }
+        const updatePayload = {
+          comment: comment,
+          link: link,
+          type: type,
+          tags: tags,
+        };
         const updateResponse = await fetch(`${API_BASE_URL}/activities/${currentStatusDetails.activityId}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatePayload)
         });
-        if (!updateResponse.ok) throw new Error('Failed to update comment/link.');
+        if (!updateResponse.ok) throw new Error('Failed to update details.');
       }
 
       if (somethingChanged) {
@@ -385,7 +401,7 @@ function App() {
     let initialProjectForModal = selectedProject || (projects.length > 0 ? projects[0] : '');
     setNewReqFormState({
         project: initialProjectForModal,
-        requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false
+        requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false, type: '', tags: ''
     });
     setIsAddModalOpen(true);
   }, [selectedProject, projects]);
@@ -398,7 +414,7 @@ function App() {
   }, []);
 
   const handleAddNewRequirement = useCallback(async () => {
-    const { project, requirementName, status, sprint, comment, link, isBacklog } = newReqFormState;
+    const { project, requirementName, status, sprint, comment, link, isBacklog, type, tags } = newReqFormState;
     if (!project.trim() || !requirementName.trim() || !status.trim()) {
       showMainMessage("Project, Requirement Name, and Status are mandatory.", 'error');
       return;
@@ -413,6 +429,8 @@ function App() {
       sprint: sprintValue,
       comment: comment ? comment.trim() : null,
       link: link ? link.trim() : null,
+      type: type ? type.trim() : null,
+      tags: tags ? tags.trim() : null,
       statusDate: new Date().toISOString().split('T')[0]
     };
 
@@ -454,6 +472,81 @@ function App() {
         showMainMessage(`Error: ${error.message}`, 'error');
     }
   }, [fetchData, showMainMessage, handleCloseAddProjectModal]);
+
+  const handleOpenImportModal = useCallback(() => setIsImportModalOpen(true), []);
+  const handleCloseImportModal = useCallback(() => {
+    setIsImportModalOpen(false);
+    setImportConfirmData(null);
+  }, []);
+
+  const executeImport = useCallback(async (file, project, sprint) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('project', project);
+    formData.append('sprint', sprint);
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/import/requirements`, {
+            method: 'POST',
+            body: formData,
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to import file.');
+        }
+        showMainMessage(result.message, 'success');
+        await fetchData();
+        setSelectedProject(project);
+        setSelectedSprint(sprint);
+    } catch (error) {
+        showMainMessage(`Import Error: ${error.message}`, 'error');
+    } finally {
+        handleCloseImportModal();
+    }
+  }, [fetchData, showMainMessage, handleCloseImportModal]);
+
+  const handleValidateImport = useCallback(async (file, project, sprint) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('project', project);
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/import/validate`, {
+            method: 'POST',
+            body: formData,
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Validation failed');
+        
+        const { newCount, duplicateCount, skippedCount } = result.data;
+        
+        if (newCount === 0 && duplicateCount === 0) {
+            let message = "Import finished. No valid items found to import.";
+            if (skippedCount > 0) message += ` Skipped items: ${skippedCount}.`;
+            showMainMessage(message, 'info');
+            handleCloseImportModal();
+            return;
+        }
+
+        if (duplicateCount > 0) {
+            setImportConfirmData({ file, project, sprint, ...result.data });
+            setIsImportConfirmModalOpen(true);
+        } else {
+            executeImport(file, project, sprint);
+        }
+    } catch (error) {
+        showMainMessage(`Validation Error: ${error.message}`, 'error');
+        handleCloseImportModal();
+    }
+  }, [executeImport, showMainMessage, handleCloseImportModal]);
+
+  const handleConfirmImport = () => {
+    if (!importConfirmData) return;
+    const { file, project, sprint } = importConfirmData;
+    executeImport(file, project, sprint);
+    setIsImportConfirmModalOpen(false);
+    setImportConfirmData(null);
+  };
 
   const handleDeleteRequirementRequest = useCallback((requirementGroupId, project, requirementName) => {
     setRequirementToDelete({ id: requirementGroupId, name: requirementName, project: project });
@@ -666,6 +759,12 @@ function App() {
 
   return (
     <div className="app-container">
+      <style>{`
+        select {
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+      `}</style>
       <AppNavigationBar />
       <Toast key={toastInfo.key} message={toastInfo.message} type={toastInfo.type} onDismiss={handleDismissToast} />
       <Routes>
@@ -687,6 +786,7 @@ function App() {
               searchSuggestions={searchSuggestions}
               onOpenAddProjectModal={handleOpenAddProjectModal}
               onOpenAddModal={handleOpenAddModal}
+              onOpenImportModal={handleOpenImportModal}
               onDeleteProjectRequest={handleDeleteProjectRequest}
               isSearching={isSearching}
               displayableRequirements={displayableRequirements}
@@ -707,6 +807,19 @@ function App() {
         isOpen={isAddProjectModalOpen}
         onClose={handleCloseAddProjectModal}
         onAddProject={handleAddNewProject}
+      />
+      <ImportRequirementsModal
+        isOpen={isImportModalOpen}
+        onClose={handleCloseImportModal}
+        onImport={handleValidateImport}
+        projects={projects}
+      />
+      <ConfirmationModal
+        isOpen={isImportConfirmModalOpen}
+        onClose={() => setIsImportConfirmModalOpen(false)}
+        onConfirm={handleConfirmImport}
+        title="Confirm Import"
+        message={`The file contains ${importConfirmData?.newCount || 0} new item(s) and ${importConfirmData?.duplicateCount || 0} item(s) that already exist (based on 'Key'). Existing items will be imported with a modified name (e.g., 'Item Name (1)'). Do you want to proceed?`}
       />
       <EditRequirementModal
         isOpen={isEditModalOpen}

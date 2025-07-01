@@ -7,6 +7,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import DefectHistoryModal from '../components/DefectHistoryModal';
 import SearchComponent from '../components/SearchComponent';
 import UpdateStatusModal from '../components/UpdateStatusModal';
+import ImportDefectsModal from '../components/ImportDefectsModal';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title, BarElement, CategoryScale, LinearScale } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
 
@@ -18,6 +19,49 @@ const DEFECT_STATUS_COLUMNS = [
   { title: 'To Be Tested', status: 'To Be Tested' },
   { title: 'Done', status: 'Done' },
 ];
+
+const DefectOptionsMenu = ({ onOpenAddModal, onOpenImportModal }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleAddClick = () => {
+    onOpenAddModal();
+    setIsOpen(false);
+  };
+  
+  const handleImportClick = () => {
+    onOpenImportModal();
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="options-menu-container" ref={menuRef}>
+      <button onClick={() => setIsOpen(!isOpen)} className="options-menu-button" title="More options">
+        ⋮
+      </button>
+      {isOpen && (
+        <div className="options-menu-dropdown">
+          <button onClick={handleAddClick} className="options-menu-item">
+            + Add Defect
+          </button>
+          <button onClick={handleImportClick} className="options-menu-item">
+            + Import Defects
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate }) => {
   const [selectedProject, setSelectedProject] = useState('');
@@ -36,18 +80,19 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
   const [areaChartData, setAreaChartData] = useState(null);
   const [returnToDevChartData, setReturnToDevChartData] = useState(null);
   const [showClosedView, setShowClosedView] = useState(false);
-
   const [isSearching, setIsSearching] = useState(false);
   const [defectQuery, setDefectQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchSuggestions, setSearchSuggestions] = useState([]);
-  
   const [isUpdateStatusModalOpen, setIsUpdateStatusModalOpen] = useState(false);
   const [statusUpdateInfo, setStatusUpdateInfo] = useState({ defect: null, newStatus: '' });
 
+  const [isImportDefectsModalOpen, setIsImportDefectsModalOpen] = useState(false);
+  const [isImportConfirmModalOpen, setIsImportConfirmModalOpen] = useState(false);
+  const [importConfirmData, setImportConfirmData] = useState(null);
+
   const navigate = useNavigate();
   const location = useLocation();
-  
   const hasFetched = useRef(false);
 
   const fetchAllDefects = useCallback(async () => {
@@ -83,7 +128,6 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
     }
   }, [allDefects, selectedProject]);
 
-
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const projectParam = params.get('project');
@@ -93,9 +137,13 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
     }
   }, [location.search, navigate, projects]);
 
-  useEffect(() => {
-    const defectsForChart = showClosedView ? closedDefects : activeDefects;
+  const handleToggleCharts = async () => {
+    if (showAreaChart) {
+      setShowAreaChart(false);
+      return;
+    }
 
+    const defectsForChart = showClosedView ? closedDefects : activeDefects;
     if (defectsForChart.length > 0) {
       const areaCounts = defectsForChart.reduce((acc, defect) => {
         acc[defect.area] = (acc[defect.area] || 0) + 1;
@@ -113,30 +161,19 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
     } else {
       setAreaChartData(null);
     }
-  }, [activeDefects, closedDefects, showClosedView]);
 
-  useEffect(() => {
-    if (!selectedProject) {
-      setReturnToDevChartData(null);
-      return;
-    }
-
-    const fetchReturnCounts = async () => {
+    if (selectedProject) {
       try {
         const statusType = showClosedView ? 'closed' : 'active';
         const response = await fetch(`${API_BASE_URL}/defects/${selectedProject}/return-counts?statusType=${statusType}`);
         if (!response.ok) throw new Error('Failed to fetch return to developer counts');
         const result = await response.json();
-        
         if (result.data && result.data.length > 0) {
-          const labels = result.data.map(d => d.title);
-          const data = result.data.map(d => d.return_count);
-
           setReturnToDevChartData({
-            labels,
+            labels: result.data.map(d => d.title),
             datasets: [{
               label: 'Times Returned to Developer',
-              data,
+              data: result.data.map(d => d.return_count),
               backgroundColor: 'rgba(255, 159, 64, 0.7)',
               borderColor: 'rgba(255, 159, 64, 1)',
               borderWidth: 1,
@@ -149,16 +186,12 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
         showMessage(`Could not load return counts chart: ${error.message}`, 'error');
         setReturnToDevChartData(null);
       }
-    };
-
-    fetchReturnCounts();
-  }, [selectedProject, showMessage, showClosedView]);
-
-  useEffect(() => {
-    if (showAreaChart && !areaChartData && !returnToDevChartData) {
-      setShowAreaChart(false);
+    } else {
+      setReturnToDevChartData(null);
     }
-  }, [areaChartData, returnToDevChartData, showAreaChart]);
+    
+    setShowAreaChart(true);
+  };
 
   const handleOpenModal = (defect = null) => {
     setEditingDefect(defect); setIsModalOpen(true);
@@ -192,8 +225,7 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
   };
 
   const handleDeleteRequest = (defect) => {
-    setDefectToDelete(defect);
-    setIsDeleteConfirmModalOpen(true);
+    setDefectToDelete(defect); setIsDeleteConfirmModalOpen(true);
   };
 
   const handleConfirmDelete = async () => {
@@ -231,32 +263,83 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
     navigate(`/?project=${encodeURIComponent(project)}&sprint=${encodeURIComponent(sprint)}`);
   }, [navigate]);
 
+  const handleOpenImportModal = useCallback(() => setIsImportDefectsModalOpen(true), []);
+  const handleCloseImportModal = useCallback(() => {
+    setIsImportDefectsModalOpen(false);
+    setImportConfirmData(null);
+  }, []);
+
+  const executeDefectImport = useCallback(async (file, project) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('project', project);
+    try {
+        const response = await fetch(`${API_BASE_URL}/import/defects`, { method: 'POST', body: formData });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Failed to import defects.');
+        showMessage(result.message, 'success');
+        await fetchAllDefects();
+        if (onDefectUpdate) onDefectUpdate();
+        setSelectedProject(project);
+    } catch (error) {
+        showMessage(`Import Error: ${error.message}`, 'error');
+    } finally {
+        handleCloseImportModal();
+    }
+  }, [fetchAllDefects, showMessage, handleCloseImportModal, onDefectUpdate]);
+
+  const handleValidateDefectImport = useCallback(async (file, project) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('project', project);
+    try {
+        const response = await fetch(`${API_BASE_URL}/import/defects/validate`, { method: 'POST', body: formData });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Validation failed');
+        
+        const { newCount, duplicateCount, skippedCount } = result.data;
+        if (newCount === 0 && duplicateCount === 0) {
+            let message = "Import finished. No valid defects found to import.";
+            if (skippedCount > 0) message += ` Skipped items: ${skippedCount}.`;
+            showMessage(message, 'info');
+            handleCloseImportModal();
+            return;
+        }
+
+        if (duplicateCount > 0) {
+            setImportConfirmData({ file, project, ...result.data });
+            setIsImportConfirmModalOpen(true);
+        } else {
+            executeDefectImport(file, project);
+        }
+    } catch (error) {
+        showMessage(`Validation Error: ${error.message}`, 'error');
+        handleCloseImportModal();
+    }
+  }, [executeDefectImport, showMessage, handleCloseImportModal]);
+
+  const handleConfirmImport = () => {
+    if (!importConfirmData) return;
+    const { file, project } = importConfirmData;
+    executeDefectImport(file, project);
+    setIsImportConfirmModalOpen(false);
+    setImportConfirmData(null);
+  };
+
   const handleDefectSearch = (query) => {
     const finalQuery = query || defectQuery;
     if (!finalQuery) {
-      handleClearDefectSearch();
-      return;
+      handleClearDefectSearch(); return;
     }
     setIsSearching(true);
     setSearchSuggestions([]);
     const lowerCaseQuery = finalQuery.toLowerCase();
-    
-    const sourceData = allDefects.filter(defect => 
-      showClosedView ? defect.status === 'Closed' : defect.status !== 'Closed'
-    );
-
-    const results = sourceData.filter(defect =>
-      defect.title.toLowerCase().includes(lowerCaseQuery)
-    );
+    const sourceData = allDefects.filter(defect => showClosedView ? defect.status === 'Closed' : defect.status !== 'Closed');
+    const results = sourceData.filter(defect => defect.title.toLowerCase().includes(lowerCaseQuery));
     setSearchResults(results);
-
     if (results.length > 0) {
       const uniqueProjects = [...new Set(results.map(d => d.project))];
-      if (uniqueProjects.length === 1) {
-        setSelectedProject(uniqueProjects[0]);
-      } else {
-        setSelectedProject('');
-      }
+      setSelectedProject(uniqueProjects.length === 1 ? uniqueProjects[0] : '');
     } else {
       setSelectedProject('');
     }
@@ -273,27 +356,17 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
   const handleDefectQueryChange = (query) => {
     setDefectQuery(query);
     if (query.length < 3) {
-      setSearchSuggestions([]);
-      return;
+      setSearchSuggestions([]); return;
     }
     const lowerCaseQuery = query.toLowerCase();
-
     let sourceData = allDefects;
     if (selectedProject) {
       sourceData = sourceData.filter(defect => defect.project === selectedProject);
     }
-    
-    sourceData = sourceData.filter(defect => 
-      showClosedView ? defect.status === 'Closed' : defect.status !== 'Closed'
-    );
-
+    sourceData = sourceData.filter(defect => showClosedView ? defect.status === 'Closed' : defect.status !== 'Closed');
     const suggestions = sourceData
       .filter(defect => defect.title.toLowerCase().includes(lowerCaseQuery))
-      .map(defect => ({
-        id: defect.id,
-        name: defect.title,
-        context: defect.project
-      }))
+      .map(defect => ({ id: defect.id, name: defect.title, context: defect.project }))
       .slice(0, 10);
     setSearchSuggestions(suggestions);
   };
@@ -301,7 +374,6 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
   const handleDefectSuggestionSelect = (suggestion) => {
     setDefectQuery(suggestion.name);
     setSearchSuggestions([]);
-
     const selectedDefect = allDefects.find(d => d.id === suggestion.id);
     if (selectedDefect) {
       setSearchResults([selectedDefect]);
@@ -325,18 +397,14 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
   const handleConfirmDefectStatusUpdate = async (comment) => {
     const { defect, newStatus } = statusUpdateInfo;
     if (!defect) return;
-    
     const payload = { ...defect, status: newStatus, comment };
-
     try {
       const response = await fetch(`${API_BASE_URL}/defects/${defect.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!response.ok) {
-        throw new Error('Failed to update defect status.');
-      }
+      if (!response.ok) throw new Error('Failed to update defect status.');
       showMessage('Defect status updated successfully!', 'success');
       await fetchAllDefects();
       if (onDefectUpdate) onDefectUpdate();
@@ -355,7 +423,6 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
     const defectId = e.dataTransfer.getData("defectId");
     const sourceData = isSearching ? searchResults : activeDefects;
     const draggedDefect = sourceData.find(d => d.id.toString() === defectId);
-    
     if (draggedDefect && draggedDefect.status !== targetStatus) {
       handleStatusUpdateRequest(draggedDefect, targetStatus);
     }
@@ -365,35 +432,18 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
     responsive: true, maintainAspectRatio: false,
     plugins: {
       legend: { position: 'right', labels: { boxWidth: 20, padding: 15 } },
-      title: { 
-        display: true, 
-        text: `${showClosedView ? 'Closed' : 'Active'} Defect Distribution by Area for ${selectedProject || 'Project'}`, 
-        font: { size: 14 } 
-      },
+      title: { display: true, text: `${showClosedView ? 'Closed' : 'Active'} Defect Distribution by Area for ${selectedProject || 'Project'}`, font: { size: 14 } },
       tooltip: { callbacks: { label: (c) => `${c.label}: ${c.parsed} (${((c.parsed / c.dataset.data.reduce((a, b) => a + b, 0)) * 100).toFixed(1)}%)` } }
     },
   };
 
   const returnToDevChartOptions = {
-    indexAxis: 'y',
-    responsive: true,
-    maintainAspectRatio: false,
+    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      title: {
-        display: true,
-        text: `Defect "Back to Developer" Count for ${selectedProject || 'Project'}`,
-        font: { size: 14 }
-      }
+      title: { display: true, text: `Defect "Back to Developer" Count for ${selectedProject || 'Project'}`, font: { size: 14 } }
     },
-    scales: {
-      x: {
-        beginAtZero: true,
-        ticks: {
-          stepSize: 1
-        }
-      }
-    }
+    scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
   };
 
   const renderBoard = (defectsToDisplay) => {
@@ -407,17 +457,7 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
     return (
       <div className="defects-board-container">
         {DEFECT_STATUS_COLUMNS.map(column => (
-          <DefectColumn 
-            key={column.status} 
-            title={column.title} 
-            defects={defectsToDisplay.filter(d => d.status === column.status)} 
-            onEditDefect={handleOpenModal} 
-            onShowHistory={handleShowHistory} 
-            onDeleteRequest={handleDeleteRequest} 
-            onNavigate={handleNavigateToRequirement}
-            onDragStart={handleDragStart}
-            onDrop={handleDrop}
-          />
+          <DefectColumn key={column.status} title={column.title} defects={defectsToDisplay.filter(d => d.status === column.status)} onEditDefect={handleOpenModal} onShowHistory={handleShowHistory} onDeleteRequest={handleDeleteRequest} onNavigate={handleNavigateToRequirement} onDragStart={handleDragStart} onDrop={handleDrop} />
         ))}
       </div>
     );
@@ -427,112 +467,57 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
 
   return (
     <div className="main-content-area">
-      <style>{`
-        .defects-controls .selection-group-container {
-          display: flex;
-          align-items: flex-start;
-          gap: 16px;
-        }
-        .defect-charts-wrapper {
-          display: flex;
-          flex-direction: row;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 20px;
-          margin-bottom: 20px;
-        }
-        .defect-charts-wrapper .defect-chart-container {
-          flex: 1 1 45%;
-          min-width: 400px;
-          max-width: 600px;
-          height: 320px;
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          background-color: #fff;
-        }
+       <style>{`
+        .defect-charts-wrapper { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 20px; margin-bottom: 20px; }
+        .defect-charts-wrapper .defect-chart-container { flex: 1 1 45%; min-width: 400px; max-width: 600px; height: 320px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background-color: #fff; }
       `}</style>
       <h2>Defect Tracking</h2>
-      <div className="defects-controls">
+      <div className="selection-controls">
         <div className="selection-group-container">
             <ProjectSelector projects={projects || []} selectedProject={selectedProject} onSelectProject={setSelectedProject} />
-            <div className="selection-group">
-                <span className="dropdown-label" style={{ visibility: 'hidden' }}>Search</span>
-                <SearchComponent
-                  query={defectQuery}
-                  onQueryChange={handleDefectQueryChange}
-                  onSearch={handleDefectSearch}
-                  onClear={handleClearDefectSearch}
-                  onSuggestionSelect={handleDefectSuggestionSelect}
-                  suggestions={searchSuggestions}
-                  placeholder="Search defects by title..."
-                />
-            </div>
+            <SearchComponent
+              query={defectQuery}
+              onQueryChange={handleDefectQueryChange}
+              onSearch={handleDefectSearch}
+              onClear={handleClearDefectSearch}
+              onSuggestionSelect={handleDefectSuggestionSelect}
+              suggestions={searchSuggestions}
+              placeholder="Search defects by title..."
+            />
         </div>
-        <div className="defects-actions-group">
-            <button onClick={() => setShowAreaChart(p => !p)} className="defect-action-button" disabled={!selectedProject || (!areaChartData && !returnToDevChartData)}>
+        <div className="page-actions-group">
+            <button onClick={handleToggleCharts} className="defect-action-button" disabled={!selectedProject}>
                 {showAreaChart ? 'Hide' : 'Show'} Charts
             </button>
             <button onClick={() => setShowClosedView(p => !p)} className="defect-action-button" disabled={isLoading || allDefects.filter(d => d.status === 'Closed').length === 0} style={{backgroundColor: '#E0D3B6', borderColor: '#C8BBA2'}}>
                 {showClosedView ? 'Show Active Defects' : 'Show Closed Defects'}
             </button>
-            <button onClick={() => handleOpenModal()} className="add-defect-button" disabled={!projects || projects.length === 0}>
-                + Add Defect
-            </button>
+            <DefectOptionsMenu
+                onOpenAddModal={() => handleOpenModal()}
+                onOpenImportModal={handleOpenImportModal}
+            />
         </div>
       </div>
 
       {isLoading && <p className="loading-message-defects">Loading defects...</p>}
-      
-      {!isLoading && !isSearching && !selectedProject && (
-          <p className="select-project-prompt-defects">Please select a project to view defects, or use the search bar for all projects.</p>
-      )}
-
+      {!isLoading && !isSearching && !selectedProject && <p className="select-project-prompt-defects">Please select a project to view defects, or use the search bar for all projects.</p>}
       {showAreaChart && selectedProject && (
         <div className="defect-charts-wrapper">
-          {areaChartData && (
-            <div className="defect-chart-container">
-              <Pie data={areaChartData} options={pieChartOptions} />
-            </div>
-          )}
-          {returnToDevChartData && (
-            <div className="defect-chart-container">
-              <Bar data={returnToDevChartData} options={returnToDevChartOptions} />
-            </div>
-          )}
-          {!areaChartData && !returnToDevChartData && !isLoading && (
-            <div className="defect-chart-container" style={{ flexBasis: '100%', height: 'auto' }}>
-              <p>No chart data available for the selected project.</p>
-            </div>
-          )}
+          {areaChartData && <div className="defect-chart-container"><Pie data={areaChartData} options={pieChartOptions} /></div>}
+          {returnToDevChartData && <div className="defect-chart-container"><Bar data={returnToDevChartData} options={returnToDevChartOptions} /></div>}
+          {!areaChartData && !returnToDevChartData && !isLoading && <div className="defect-chart-container" style={{ flexBasis: '100%', height: 'auto' }}><p>No chart data available for the selected project.</p></div>}
         </div>
       )}
 
-      {!isLoading && (
-        isSearching 
-          ? (searchResults.length > 0 ? renderBoard(searchResults) : <div className="empty-column-message">No results found for your search.</div>)
-          : (selectedProject ? renderBoard(defectsForNormalView) : null)
-      )}
-
-      <UpdateStatusModal
-        isOpen={isUpdateStatusModalOpen}
-        onClose={handleCloseUpdateStatusModal}
-        onSave={handleConfirmDefectStatusUpdate}
-        requirement={statusUpdateInfo.defect ? { requirementUserIdentifier: statusUpdateInfo.defect.title } : null}
-        newStatus={statusUpdateInfo.newStatus}
-      />
-
-      <DefectModal 
-        isOpen={isModalOpen} 
-        onClose={handleCloseModal} 
-        onSubmit={handleSubmitDefect} 
-        defect={editingDefect} 
-        projects={projects || []} 
-        currentSelectedProject={selectedProject}
-        allRequirements={allRequirements} 
-      />
-      {defectForHistory && (<DefectHistoryModal isOpen={isHistoryModalOpen} onClose={() => { setIsHistoryModalOpen(false); setDefectForHistory(null); setDefectHistory([]);}} defect={defectForHistory} history={defectHistory} />)}
+      {!isLoading && (isSearching ? (searchResults.length > 0 ? renderBoard(searchResults) : <div className="empty-column-message">No results found for your search.</div>) : (selectedProject ? renderBoard(defectsForNormalView) : null))}
+      
+      <UpdateStatusModal isOpen={isUpdateStatusModalOpen} onClose={handleCloseUpdateStatusModal} onSave={handleConfirmDefectStatusUpdate} requirement={statusUpdateInfo.defect ? { requirementUserIdentifier: statusUpdateInfo.defect.title } : null} newStatus={statusUpdateInfo.newStatus} />
+      <DefectModal isOpen={isModalOpen} onClose={handleCloseModal} onSubmit={handleSubmitDefect} defect={editingDefect} projects={projects || []} currentSelectedProject={selectedProject} allRequirements={allRequirements} />
+      {defectForHistory && <DefectHistoryModal isOpen={isHistoryModalOpen} onClose={() => { setIsHistoryModalOpen(false); setDefectForHistory(null); setDefectHistory([]);}} defect={defectForHistory} history={defectHistory} />}
       <ConfirmationModal isOpen={isDeleteConfirmModalOpen} onClose={() => setIsDeleteConfirmModalOpen(false)} onConfirm={handleConfirmDelete} title="Confirm Defect Deletion" message={`Are you sure you want to permanently delete the defect "${defectToDelete?.title}"? This action cannot be undone.`} />
+      
+      <ImportDefectsModal isOpen={isImportDefectsModalOpen} onClose={handleCloseImportModal} onImport={handleValidateDefectImport} projects={projects || []} />
+      <ConfirmationModal isOpen={isImportConfirmModalOpen} onClose={() => setIsImportConfirmModalOpen(false)} onConfirm={handleConfirmImport} title="Confirm Defect Import" message={`The file contains ${importConfirmData?.newCount || 0} new defect(s) and ${importConfirmData?.duplicateCount || 0} duplicate(s). Do you want to proceed?`} />
     </div>
   );
 };
