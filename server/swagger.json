@@ -21,6 +21,10 @@
       "description": "Operations related to sprint requirements and activities"
     },
     {
+      "name": "Import",
+      "description": "Operations for importing data from external sources"
+    },
+    {
       "name": "Notes",
       "description": "Operations for daily notes"
     },
@@ -194,7 +198,7 @@
     },
     "/activities": {
       "post": {
-        "summary": "Create a new activity (can create a new requirement group or update an existing one)",
+        "summary": "Create a new activity (can create or update a requirement)",
         "tags": [
           "Requirements"
         ],
@@ -236,7 +240,7 @@
     },
     "/activities/{activityId}": {
       "put": {
-        "summary": "Update an existing activity's comment, date, or link",
+        "summary": "Update an existing activity's details",
         "tags": [
           "Requirements"
         ],
@@ -293,7 +297,7 @@
     },
     "/requirements/{requirementGroupId}/rename": {
       "put": {
-        "summary": "Rename a requirement group (update its user-facing identifier)",
+        "summary": "Rename a requirement group",
         "tags": [
           "Requirements"
         ],
@@ -382,6 +386,295 @@
         }
       }
     },
+    "/import/validate": {
+      "post": {
+        "summary": "Validate a requirements Excel file for import",
+        "description": "Checks an Excel file for new, duplicate, and skippable requirements without actually importing them.",
+        "tags": [
+          "Import"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The .xlsx or .xls file to validate."
+                  },
+                  "project": {
+                    "type": "string",
+                    "description": "The target project name for validation."
+                  }
+                },
+                "required": [
+                  "file",
+                  "project"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation complete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "newCount": {
+                          "type": "integer"
+                        },
+                        "duplicateCount": {
+                          "type": "integer"
+                        },
+                        "skippedCount": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/import/requirements": {
+      "post": {
+        "summary": "Import requirements from an Excel file",
+        "description": "Imports requirements from an Excel file. If duplicates are found (based on the 'Key' column), they are renamed and imported.",
+        "tags": [
+          "Import"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The .xlsx or .xls file to import."
+                  },
+                  "project": {
+                    "type": "string",
+                    "description": "The target project name."
+                  },
+                  "sprint": {
+                    "type": "string",
+                    "description": "The target sprint for the new requirements."
+                  }
+                },
+                "required": [
+                  "file",
+                  "project",
+                  "sprint"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Import successful.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "imported": {
+                          "type": "integer"
+                        },
+                        "renamed": {
+                          "type": "integer"
+                        },
+                        "skipped": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/import/defects/validate": {
+      "post": {
+        "summary": "Validate a defects Excel file for import",
+        "description": "Checks an Excel file for new, duplicate, and skippable defects without actually importing them.",
+        "tags": [
+          "Import"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The .xlsx or .xls file to validate."
+                  },
+                  "project": {
+                    "type": "string",
+                    "description": "The target project name for validation."
+                  }
+                },
+                "required": [
+                  "file",
+                  "project"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation complete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "newCount": {
+                          "type": "integer"
+                        },
+                        "duplicateCount": {
+                          "type": "integer"
+                        },
+                        "skippedCount": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/import/defects": {
+      "post": {
+        "summary": "Import defects from an Excel file",
+        "description": "Imports defects from an Excel file. If duplicates are found (based on the 'Key' column), they are renamed and imported.",
+        "tags": [
+          "Import"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The .xlsx or .xls file to import."
+                  },
+                  "project": {
+                    "type": "string",
+                    "description": "The target project name."
+                  }
+                },
+                "required": [
+                  "file",
+                  "project"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Import successful.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "imported": {
+                          "type": "integer"
+                        },
+                        "renamed": {
+                          "type": "integer"
+                        },
+                        "skipped": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
     "/notes/{project}": {
       "get": {
         "summary": "Get all notes for a specific project",
@@ -427,7 +720,7 @@
     },
     "/notes": {
       "post": {
-        "summary": "Create or update a note for a project and date (deletes if noteText is empty)",
+        "summary": "Create or update a note for a project and date",
         "tags": [
           "Notes"
         ],
@@ -652,7 +945,6 @@
     "/defects/all": {
       "get": {
         "summary": "Get all defects from all projects",
-        "description": "Retrieves a comprehensive list of all defects, regardless of project or status. Useful for global search operations.",
         "tags": [
           "Defects"
         ],
@@ -680,16 +972,13 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
-          },
-          "500": {
-            "$ref": "#/components/responses/ServerError"
           }
         }
       }
     },
     "/defects/{project}": {
       "get": {
-        "summary": "Get defects for a project with linked requirements",
+        "summary": "Get defects for a project",
         "tags": [
           "Defects"
         ],
@@ -746,7 +1035,6 @@
         "tags": [
           "Defects"
         ],
-        "description": "Retrieves a list of defects for a given project, along with a count of how many times each defect's history includes a status change to 'Under Developer'.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProjectPath"
@@ -839,7 +1127,6 @@
     "/defects/{id}": {
       "put": {
         "summary": "Update an existing defect",
-        "description": "Updates a defect's properties. Changing status to 'Closed' will move it to the closed view but will not delete it.",
         "tags": [
           "Defects"
         ],
@@ -860,7 +1147,7 @@
         },
         "responses": {
           "200": {
-            "description": "Defect processed (updated or comment added)",
+            "description": "Defect updated successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -890,7 +1177,6 @@
       },
       "delete": {
         "summary": "Permanently delete a defect",
-        "description": "Permanently deletes a defect and its associated history. This action is irreversible.",
         "tags": [
           "Defects"
         ],
@@ -1032,8 +1318,7 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LinkedDefect"
-            },
-            "description": "A list of defects linked to this requirement."
+            }
           }
         }
       },
@@ -1041,8 +1326,7 @@
         "type": "object",
         "properties": {
           "activityId": {
-            "type": "integer",
-            "description": "DB PK of the activity log"
+            "type": "integer"
           },
           "status": {
             "type": "string"
@@ -1063,6 +1347,16 @@
             "type": "string",
             "format": "url",
             "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true,
+            "description": "Type of the requirement (e.g., Story, Bug)."
+          },
+          "tags": {
+            "type": "string",
+            "nullable": true,
+            "description": "Comma-separated tags."
           },
           "isCurrent": {
             "type": "boolean"
@@ -1103,6 +1397,19 @@
             "type": "string",
             "format": "url",
             "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "string",
+            "nullable": true
+          },
+          "key": {
+            "type": "string",
+            "nullable": true,
+            "description": "Unique key for the item (e.g., from JIRA), used for import de-duplication."
           },
           "existingRequirementGroupId": {
             "type": "integer",
@@ -1145,6 +1452,14 @@
             "format": "url",
             "nullable": true
           },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "string",
+            "nullable": true
+          },
           "isCurrent": {
             "type": "boolean"
           }
@@ -1166,6 +1481,14 @@
           "link": {
             "type": "string",
             "format": "url",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "string",
             "nullable": true
           }
         },
@@ -1198,8 +1521,7 @@
           },
           "noteText": {
             "type": "string",
-            "nullable": true,
-            "description": "The content of the note. Can be plain text or HTML from the rich text editor, including large Base64-encoded images."
+            "nullable": true
           }
         }
       },
@@ -1339,8 +1661,7 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LinkedRequirement"
-            },
-            "description": "A list of requirements linked to this defect."
+            }
           }
         }
       },
@@ -1386,15 +1707,13 @@
           },
           "comment": {
             "type": "string",
-            "nullable": true,
-            "description": "Comment for the creation or update action"
+            "nullable": true
           },
           "linkedRequirementGroupIds": {
             "type": "array",
             "items": {
               "type": "integer"
-            },
-            "description": "An array of requirement group IDs to link to this defect."
+            }
           }
         }
       },
@@ -1435,15 +1754,13 @@
           },
           "comment": {
             "type": "string",
-            "nullable": true,
-            "description": "Comment for the update action"
+            "nullable": true
           },
           "linkedRequirementGroupIds": {
             "type": "array",
             "items": {
               "type": "integer"
-            },
-            "description": "An array of requirement group IDs to link to this defect. This will replace all existing links."
+            }
           }
         },
         "minProperties": 1
@@ -1567,7 +1884,7 @@
         "name": "id",
         "in": "path",
         "required": true,
-        "description": "ID of the item (e.g., retrospective item, defect)",
+        "description": "ID of the item",
         "schema": {
           "type": "integer"
         }
@@ -1584,7 +1901,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "Bad Request (e.g., invalid input, missing fields)",
+        "description": "Bad Request",
         "content": {
           "application/json": {
             "schema": {

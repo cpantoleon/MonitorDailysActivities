@@ -35,6 +35,9 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                 comment TEXT,
                 sprint TEXT,
                 link TEXT,
+                type TEXT,
+                tags TEXT,
+                key TEXT,
                 isCurrent INTEGER DEFAULT 0,
                 created_at TEXT,
                 updated_at TEXT
@@ -44,19 +47,21 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
                     db.all("PRAGMA table_info(activities)", (pragmaErr, tableColumns) => {
                         if (pragmaErr) return;
                         
-                        const hasCreatedAt = tableColumns.some(col => col.name === 'created_at');
-                        if (!hasCreatedAt) {
-                            db.run("ALTER TABLE activities ADD COLUMN created_at TEXT", (alterErr) => {
-                                if (alterErr) console.error("Error adding created_at column to activities:", alterErr.message);
-                            });
-                        }
+                        const columnsToAdd = [
+                            { name: 'created_at', type: 'TEXT' },
+                            { name: 'updated_at', type: 'TEXT' },
+                            { name: 'type', type: 'TEXT' },
+                            { name: 'tags', type: 'TEXT' },
+                            { name: 'key', type: 'TEXT' }
+                        ];
 
-                        const hasUpdatedAt = tableColumns.some(col => col.name === 'updated_at');
-                        if (!hasUpdatedAt) {
-                            db.run("ALTER TABLE activities ADD COLUMN updated_at TEXT", (alterErr) => {
-                                if (alterErr) console.error("Error adding updated_at column to activities:", alterErr.message);
-                            });
-                        }
+                        columnsToAdd.forEach(col => {
+                            if (!tableColumns.some(c => c.name === col.name)) {
+                                db.run(`ALTER TABLE activities ADD COLUMN ${col.name} ${col.type}`, (alterErr) => {
+                                    if (alterErr) console.error(`Error adding ${col.name} column to activities:`, alterErr.message);
+                                });
+                            }
+                        });
                     });
                 }
             });

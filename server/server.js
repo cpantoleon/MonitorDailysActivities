@@ -4,6 +4,8 @@ const db = require('./database.js');
 const swaggerUi = require('swagger-ui-express');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+const xlsx = require('xlsx');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -16,9 +18,75 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
+const upload = multer({ storage: multer.memoryStorage() });
 
 const swaggerDocument = JSON.parse(fs.readFileSync(path.join(__dirname, 'swagger.json'), 'utf8'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+const processExcelData = (fileBuffer) => {
+    const validTypes = ['Change Request', 'Task', 'Bug', 'Story'];
+    const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(worksheet, { defval: "" });
+
+    const results = {
+        validRows: [],
+        skippedCount: 0,
+    };
+
+    data.forEach(row => {
+        const summary = row['Summary'] ? String(row['Summary']).trim() : '';
+        if (!summary) return;
+        const type = row['T'] ? String(row['T']).trim() : '';
+        if (!validTypes.includes(type)) {
+            results.skippedCount++;
+            return;
+        }
+        const linkRegex = /\[(.*?)\]/;
+        const title = summary.replace(linkRegex, '').trim();
+        const key = row['Key'] ? String(row['Key']).trim() : '';
+        const tags = row['Sprint'] ? String(row['Sprint']).trim() : null;
+        const link = key ? `https://jira.example.com/browse/${key}` : null;
+        results.validRows.push({ title, type, tags, link, key });
+    });
+    return results;
+};
+
+// CORRECTED FUNCTION
+const processDefectExcelData = (fileBuffer) => {
+    const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(worksheet, { defval: "" });
+
+    const results = {
+        validRows: [],
+        skippedCount: 0,
+    };
+
+    data.forEach(row => {
+        const type = row['T'] ? String(row['T']).trim() : '';
+        if (type !== 'Defect') {
+            results.skippedCount++;
+            return;
+        }
+
+        const title = row['Summary'] ? String(row['Summary']).trim() : '';
+        if (!title) {
+            results.skippedCount++;
+            return;
+        }
+
+        const key = row['Key'] ? String(row['Key']).trim() : '';
+        const link = key ? `https://jira.example.com/browse/${key}` : null;
+
+        results.validRows.push({ title, link });
+    });
+
+    return results;
+};
+
 
 app.get("/api/projects", (req, res) => {
     const sql = "SELECT name FROM projects ORDER BY name ASC";
@@ -76,7 +144,7 @@ app.get("/api/requirements", (req, res) => {
     const activitiesSql = `SELECT
                     act.id as activityDbId, act.requirementGroupId, act.project,
                     act.requirementUserIdentifier, act.status, act.statusDate,
-                    act.comment, act.sprint, act.link, act.isCurrent,
+                    act.comment, act.sprint, act.link, act.type, act.tags, act.isCurrent,
                     act.created_at
                  FROM activities act
                  ORDER BY act.requirementGroupId, act.created_at DESC`;
@@ -108,7 +176,7 @@ app.get("/api/requirements", (req, res) => {
                 requirementsGroupMap.set(groupId, {
                     id: groupId,
                     project: row.project ? row.project.trim() : 'Unknown Project',
-                    requirementUserIdentifier: row.requirementUserIdentifier ? row.requirementUserIdentifier.trim() : 'Unnamed Requirement',
+                    requirementUserIdentifier: row.requirementUserIdentifier ? row.requirementUserIdentifier.trim() : 'Unknown Identifier',
                     history: [],
                     currentStatusDetails: {},
                     linkedDefects: linksMap.get(groupId) || []
@@ -119,7 +187,7 @@ app.get("/api/requirements", (req, res) => {
                 reqGroupEntry.history.push({
                     activityId: row.activityDbId, status: row.status, date: row.statusDate,
                     comment: row.comment, sprint: row.sprint ? row.sprint.trim() : row.sprint,
-                    link: row.link, isCurrent: row.isCurrent === 1,
+                    link: row.link, type: row.type, tags: row.tags, isCurrent: row.isCurrent === 1,
                     createdAt: row.created_at
                 });
             }
@@ -140,7 +208,7 @@ app.get("/api/requirements", (req, res) => {
 });
 
 app.post("/api/activities", (req, res) => {
-    let { project, requirementName, status, statusDate, comment, sprint, link, existingRequirementGroupId } = req.body;
+    let { project, requirementName, status, statusDate, comment, sprint, link, existingRequirementGroupId, type, tags, key } = req.body;
     if (!project || !requirementName || !status || !statusDate || !sprint) {
         return res.status(400).json({ error: "Missing required fields (project, requirementName, status, statusDate, sprint)" });
     }
@@ -150,12 +218,15 @@ app.post("/api/activities", (req, res) => {
     sprint = sprint.trim();
     comment = comment ? comment.trim() : null;
     link = link ? link.trim() : null;
+    type = type ? type.trim() : null;
+    tags = tags ? tags.trim() : null;
+    const itemKey = key ? key.trim() : null;
     const now = new Date().toISOString();
 
     db.serialize(() => {
-        const insertSql = `INSERT INTO activities (project, requirementUserIdentifier, status, statusDate, comment, sprint, link, isCurrent, requirementGroupId, created_at, updated_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, 1, NULL, ?, ?)`;
-        db.run(insertSql, [project, requirementUserIdentifier, status, statusDate, comment, sprint, link, now, now], function(err) {
+        const insertSql = `INSERT INTO activities (project, requirementUserIdentifier, status, statusDate, comment, sprint, link, type, tags, key, isCurrent, requirementGroupId, created_at, updated_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, ?, ?)`;
+        db.run(insertSql, [project, requirementUserIdentifier, status, statusDate, comment, sprint, link, type, tags, itemKey, now, now], function(err) {
             if (err) {
                 return res.status(400).json({ error: "Failed to insert activity: " + err.message });
             }
@@ -181,7 +252,7 @@ app.post("/api/activities", (req, res) => {
                             message: "success",
                             data: {
                                 activityDbId: newActivityDbId, requirementGroupId: finalRequirementGroupId,
-                                project, requirementUserIdentifier, status, statusDate, comment, sprint, link, isCurrent: 1
+                                project, requirementUserIdentifier, status, statusDate, comment, sprint, link, isCurrent: 1, type, tags
                             }
                         });
                     });
@@ -192,25 +263,19 @@ app.post("/api/activities", (req, res) => {
 });
 
 app.put("/api/activities/:activityId", (req, res) => {
-    let { comment, statusDate, link } = req.body;
+    let { comment, statusDate, link, type, tags } = req.body;
     const activityDbId = req.params.activityId;
-    if (comment === undefined && statusDate === undefined && link === undefined) {
-        return res.status(400).json({ error: "No fields to update provided (comment, statusDate, or link)" });
+    if (comment === undefined && statusDate === undefined && link === undefined && type === undefined && tags === undefined) {
+        return res.status(400).json({ error: "No fields to update provided" });
     }
     let fieldsToUpdate = [];
     let params = [];
-    if (comment !== undefined) {
-        fieldsToUpdate.push("comment = ?");
-        params.push(comment);
-    }
-    if (statusDate !== undefined) {
-        fieldsToUpdate.push("statusDate = ?");
-        params.push(statusDate);
-    }
-    if (link !== undefined) {
-        fieldsToUpdate.push("link = ?");
-        params.push(link);
-    }
+    if (comment !== undefined) { fieldsToUpdate.push("comment = ?"); params.push(comment); }
+    if (statusDate !== undefined) { fieldsToUpdate.push("statusDate = ?"); params.push(statusDate); }
+    if (link !== undefined) { fieldsToUpdate.push("link = ?"); params.push(link); }
+    if (type !== undefined) { fieldsToUpdate.push("type = ?"); params.push(type); }
+    if (tags !== undefined) { fieldsToUpdate.push("tags = ?"); params.push(tags); }
+
     fieldsToUpdate.push("updated_at = ?");
     params.push(new Date().toISOString());
     params.push(activityDbId);
@@ -278,6 +343,236 @@ app.delete("/api/requirements/:requirementGroupId", (req, res) => {
             });
         });
     });
+});
+
+app.post('/api/import/validate', upload.single('file'), (req, res) => {
+    const { project } = req.body;
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    if (!project) return res.status(400).json({ error: 'Project is required.' });
+
+    try {
+        const { validRows, skippedCount } = processExcelData(req.file.buffer);
+
+        const getExistingKeysSql = `SELECT key FROM activities WHERE project = ? AND key IS NOT NULL AND key != ''`;
+        db.all(getExistingKeysSql, [project], (err, existingRows) => {
+            if (err) return res.status(500).json({ error: "Failed to check for existing requirements." });
+
+            const existingKeys = new Set(existingRows.map(r => r.key));
+            
+            const duplicates = validRows.filter(row => row.key && existingKeys.has(row.key));
+            const newItems = validRows.filter(row => !row.key || !existingKeys.has(row.key));
+
+            res.status(200).json({
+                message: "Validation complete.",
+                data: {
+                    newCount: newItems.length,
+                    duplicateCount: duplicates.length,
+                    skippedCount: skippedCount,
+                }
+            });
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to process Excel file: ' + error.message });
+    }
+});
+
+app.post('/api/import/requirements', upload.single('file'), (req, res) => {
+    const { project, sprint } = req.body;
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    if (!project || !sprint) return res.status(400).json({ error: 'Project and Sprint are required.' });
+
+    try {
+        const { validRows, skippedCount } = processExcelData(req.file.buffer);
+        const now = new Date().toISOString();
+        const statusDate = now.split('T')[0];
+
+        const getExistingDataSql = `SELECT key, requirementUserIdentifier FROM activities WHERE project = ?`;
+        db.all(getExistingDataSql, [project], (err, existingRows) => {
+            if (err) return res.status(500).json({ error: "Failed to check for existing requirements." });
+            
+            const existingKeys = new Set(existingRows.map(r => r.key).filter(Boolean));
+            const existingNames = new Set(existingRows.map(r => r.requirementUserIdentifier));
+
+            let renamedCount = 0;
+
+            const itemsToImport = validRows.map(item => {
+                let newItem = { ...item };
+                if (newItem.key && existingKeys.has(newItem.key)) {
+                    renamedCount++;
+                    let newTitle = newItem.title;
+                    let counter = 1;
+                    while (existingNames.has(newTitle)) {
+                        newTitle = `${item.title} (${counter})`;
+                        counter++;
+                    }
+                    newItem.title = newTitle;
+                    existingNames.add(newTitle);
+                }
+                return newItem;
+            });
+
+            if (itemsToImport.length === 0) {
+                let messageParts = ["Import finished. No valid items to import"];
+                if (skippedCount > 0) messageParts.push(`Skipped: ${skippedCount}`);
+                return res.status(200).json({ message: messageParts.join('. ') + '.' });
+            }
+
+            db.serialize(() => {
+                db.run("BEGIN TRANSACTION");
+                const insertSql = `INSERT INTO activities (project, requirementUserIdentifier, status, statusDate, sprint, link, type, tags, key, isCurrent, requirementGroupId, created_at, updated_at)
+                                   VALUES (?, ?, 'To Do', ?, ?, ?, ?, ?, ?, 1, NULL, ?, ?)`;
+                
+                let completedInserts = 0;
+                let successfulInserts = 0;
+
+                itemsToImport.forEach(item => {
+                    db.run(insertSql, [project, item.title, statusDate, sprint, item.link, item.type, item.tags, item.key, now, now], function(err) {
+                        if (err) {
+                            console.error("Error inserting imported activity:", err.message);
+                        } else {
+                            successfulInserts++;
+                            const newId = this.lastID;
+                            db.run(`UPDATE activities SET requirementGroupId = ? WHERE id = ?`, [newId, newId]);
+                        }
+                        completedInserts++;
+                        if (completedInserts === itemsToImport.length) {
+                             db.run("COMMIT", (commitErr) => {
+                                if (commitErr) return res.status(500).json({ error: "Failed to commit imported data: " + commitErr.message });
+                                
+                                let messageParts = [`Import complete. Imported: ${successfulInserts}`];
+                                if (renamedCount > 0) messageParts.push(`Renamed ${renamedCount} duplicate(s)`);
+                                if (skippedCount > 0) messageParts.push(`Skipped: ${skippedCount}`);
+
+                                res.status(201).json({
+                                    message: messageParts.join('. ') + '.',
+                                    data: { imported: successfulInserts, renamed: renamedCount, skipped: skippedCount }
+                                });
+                            });
+                        }
+                    });
+                });
+            });
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to process Excel file: ' + error.message });
+    }
+});
+
+app.post('/api/import/defects/validate', upload.single('file'), (req, res) => {
+    const { project } = req.body;
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    if (!project) return res.status(400).json({ error: 'Project is required.' });
+
+    try {
+        const { validRows, skippedCount } = processDefectExcelData(req.file.buffer);
+
+        const getExistingLinksSql = `SELECT link FROM defects WHERE project = ? AND link IS NOT NULL`;
+        db.all(getExistingLinksSql, [project], (err, existingRows) => {
+            if (err) return res.status(500).json({ error: "Failed to check for existing defects." });
+
+            const existingLinks = new Set(existingRows.map(r => r.link));
+            
+            const duplicates = validRows.filter(row => row.link && existingLinks.has(row.link));
+            const newItems = validRows.filter(row => !row.link || !existingLinks.has(row.link));
+
+            res.status(200).json({
+                message: "Validation complete.",
+                data: {
+                    newCount: newItems.length,
+                    duplicateCount: duplicates.length,
+                    skippedCount: skippedCount,
+                }
+            });
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to process Excel file for defects: ' + error.message });
+    }
+});
+
+app.post('/api/import/defects', upload.single('file'), (req, res) => {
+    const { project } = req.body;
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    if (!project) return res.status(400).json({ error: 'Project is required.' });
+
+    try {
+        const { validRows, skippedCount } = processDefectExcelData(req.file.buffer);
+        const created_date = new Date().toISOString().split('T')[0];
+
+        const getExistingDataSql = `SELECT link, title FROM defects WHERE project = ?`;
+        db.all(getExistingDataSql, [project], (err, existingRows) => {
+            if (err) return res.status(500).json({ error: "Failed to check for existing defects." });
+
+            const existingLinks = new Set(existingRows.map(r => r.link).filter(Boolean));
+            const existingTitles = new Set(existingRows.map(r => r.title));
+            let renamedCount = 0;
+
+            const itemsToImport = validRows.map(item => {
+                let newItem = { ...item };
+                if (newItem.link && existingLinks.has(newItem.link)) {
+                    renamedCount++;
+                    let newTitle = newItem.title;
+                    let counter = 1;
+                    while (existingTitles.has(newTitle)) {
+                        newTitle = `${item.title} (${counter})`;
+                        counter++;
+                    }
+                    newItem.title = newTitle;
+                    existingTitles.add(newTitle);
+                }
+                return newItem;
+            });
+
+            if (itemsToImport.length === 0) {
+                let message = "Import finished. No valid defects to import";
+                if (skippedCount > 0) message += `. Skipped: ${skippedCount}`;
+                return res.status(200).json({ message: message + '.' });
+            }
+
+            db.serialize(() => {
+                db.run("BEGIN TRANSACTION");
+                const insertDefectSql = `INSERT INTO defects (project, title, area, status, link, created_date) VALUES (?, ?, ?, ?, ?, ?)`;
+                const insertHistorySql = `INSERT INTO defect_history (defect_id, changes_summary, comment) VALUES (?, ?, ?)`;
+                
+                let completedInserts = 0;
+                let successfulInserts = 0;
+
+                itemsToImport.forEach(item => {
+                    const defaultArea = 'Imported';
+                    const defaultStatus = 'Under Developer';
+
+                    db.run(insertDefectSql, [project, item.title, defaultArea, defaultStatus, item.link, created_date], function(err) {
+                        if (err) {
+                            console.error("Error inserting imported defect:", err.message);
+                        } else {
+                            successfulInserts++;
+                            const defectId = this.lastID;
+                            const creationSummary = JSON.stringify({
+                                status: { old: null, new: defaultStatus }, title: { old: null, new: item.title }, area: { old: null, new: defaultArea }
+                            });
+                            db.run(insertHistorySql, [defectId, creationSummary, "Defect created via import."]);
+                        }
+                        completedInserts++;
+                        if (completedInserts === itemsToImport.length) {
+                             db.run("COMMIT", (commitErr) => {
+                                if (commitErr) return res.status(500).json({ error: "Failed to commit imported defects: " + commitErr.message });
+                                
+                                let message = `Import complete. Imported: ${successfulInserts}`;
+                                if (renamedCount > 0) message += `. Renamed ${renamedCount} duplicate(s)`;
+                                if (skippedCount > 0) message += `. Skipped: ${skippedCount}`;
+
+                                res.status(201).json({
+                                    message: message + '.',
+                                    data: { imported: successfulInserts, renamed: renamedCount, skipped: skippedCount }
+                                });
+                            });
+                        }
+                    });
+                });
+            });
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to process Excel file for defects: ' + error.message });
+    }
 });
 
 app.get("/api/notes/:project", (req, res) => {
