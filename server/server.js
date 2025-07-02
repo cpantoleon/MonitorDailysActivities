@@ -23,6 +23,16 @@ const upload = multer({ storage: multer.memoryStorage() });
 const swaggerDocument = JSON.parse(fs.readFileSync(path.join(__dirname, 'swagger.json'), 'utf8'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
+const getProjectId = (projectName) => {
+    return new Promise((resolve, reject) => {
+        db.get("SELECT id FROM projects WHERE name = ?", [projectName], (err, row) => {
+            if (err) reject(new Error("DB error checking project"));
+            else if (!row) reject(new Error(`Project '${projectName}' not found.`));
+            else resolve(row.id);
+        });
+    });
+};
+
 const processExcelData = (fileBuffer) => {
     const validTypes = ['Change Request', 'Task', 'Bug', 'Story'];
     const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
@@ -113,41 +123,23 @@ app.delete("/api/projects/:name", (req, res) => {
     const projectName = decodeURIComponent(req.params.name);
     if (!projectName) return res.status(400).json({ error: "Project name is required." });
 
-    db.serialize(() => {
-        db.run("BEGIN", (err) => { if (err) return res.status(500).json({ error: err.message }); });
-        const tables = ['activities', 'notes', 'defects', 'retrospective_items', 'releases', 'projects'];
-        let totalChanges = 0, completed = 0;
-        const checkCompletion = () => {
-            completed++;
-            if (completed === tables.length) {
-                db.run("COMMIT", (commitErr) => {
-                    if (commitErr) return res.status(500).json({ error: commitErr.message });
-                    if (totalChanges === 0) return res.status(404).json({ error: `Project '${projectName}' not found.` });
-                    res.json({ message: `Project '${projectName}' and all its associated data have been deleted.`, changes: totalChanges });
-                });
-            }
-        };
-        const handleError = (err) => {
-            db.run("ROLLBACK");
-            res.status(500).json({ error: `Failed to delete data for project '${projectName}': ${err.message}` });
-        };
-        db.run(`DELETE FROM activities WHERE project = ?`, [projectName], function(err) { if (err) return handleError(err); totalChanges += this.changes; checkCompletion(); });
-        db.run(`DELETE FROM notes WHERE project = ?`, [projectName], function(err) { if (err) return handleError(err); totalChanges += this.changes; checkCompletion(); });
-        db.run(`DELETE FROM defects WHERE project = ?`, [projectName], function(err) { if (err) return handleError(err); totalChanges += this.changes; checkCompletion(); });
-        db.run(`DELETE FROM retrospective_items WHERE project = ?`, [projectName], function(err) { if (err) return handleError(err); totalChanges += this.changes; checkCompletion(); });
-        db.run(`DELETE FROM releases WHERE project = ?`, [projectName], function(err) { if (err) return handleError(err); totalChanges += this.changes; checkCompletion(); });
-        db.run(`DELETE FROM projects WHERE name = ?`, [projectName], function(err) { if (err) return handleError(err); totalChanges += this.changes; checkCompletion(); });
+    const sql = 'DELETE FROM projects WHERE name = ?';
+    db.run(sql, [projectName], function(err) {
+        if (err) return res.status(500).json({ error: `Failed to delete project '${projectName}': ${err.message}` });
+        if (this.changes === 0) return res.status(404).json({ error: `Project '${projectName}' not found.` });
+        res.json({ message: `Project '${projectName}' and all its associated data have been deleted.`, changes: this.changes });
     });
 });
 
 app.get("/api/requirements", (req, res) => {
     const activitiesSql = `SELECT
-                    act.id as activityDbId, act.requirementGroupId, act.project,
+                    act.id as activityDbId, act.requirementGroupId, p.name as project,
                     act.requirementUserIdentifier, act.status, act.statusDate,
                     act.comment, act.sprint, act.link, act.type, act.tags, act.isCurrent,
                     act.created_at, act.release_id,
                     rel.name as release_name, rel.release_date
                  FROM activities act
+                 JOIN projects p ON act.project_id = p.id
                  LEFT JOIN releases rel ON act.release_id = rel.id
                  ORDER BY act.requirementGroupId, act.created_at DESC`;
     
@@ -156,16 +148,24 @@ app.get("/api/requirements", (req, res) => {
                       JOIN defects d ON l.defect_id = d.id
                       WHERE d.status != 'Closed'`;
 
+    const changesSql = `SELECT requirement_group_id, COUNT(id) as change_count FROM requirement_changes GROUP BY requirement_group_id`;
+
     Promise.all([
         new Promise((resolve, reject) => db.all(activitiesSql, [], (err, rows) => err ? reject(err) : resolve(rows))),
-        new Promise((resolve, reject) => db.all(linksSql, [], (err, rows) => err ? reject(err) : resolve(rows)))
-    ]).then(([activityRows, linkRows]) => {
+        new Promise((resolve, reject) => db.all(linksSql, [], (err, rows) => err ? reject(err) : resolve(rows))),
+        new Promise((resolve, reject) => db.all(changesSql, [], (err, rows) => err ? reject(err) : resolve(rows)))
+    ]).then(([activityRows, linkRows, changeRows]) => {
         const linksMap = new Map();
         linkRows.forEach(link => {
             if (!linksMap.has(link.requirement_group_id)) {
                 linksMap.set(link.requirement_group_id, []);
             }
             linksMap.get(link.requirement_group_id).push({ id: link.defect_id, title: link.defect_title });
+        });
+
+        const changesMap = new Map();
+        changeRows.forEach(change => {
+            changesMap.set(change.requirement_group_id, change.change_count);
         });
 
         const requirementsGroupMap = new Map();
@@ -181,7 +181,8 @@ app.get("/api/requirements", (req, res) => {
                     requirementUserIdentifier: row.requirementUserIdentifier ? row.requirementUserIdentifier.trim() : 'Unknown Identifier',
                     history: [],
                     currentStatusDetails: {},
-                    linkedDefects: linksMap.get(groupId) || []
+                    linkedDefects: linksMap.get(groupId) || [],
+                    changeCount: changesMap.get(groupId) || 0
                 });
             }
             const reqGroupEntry = requirementsGroupMap.get(groupId);
@@ -212,42 +213,36 @@ app.get("/api/requirements", (req, res) => {
     });
 });
 
-app.post("/api/activities", (req, res) => {
+app.post("/api/activities", async (req, res) => {
     let { project, requirementName, status, statusDate, comment, sprint, link, existingRequirementGroupId, type, tags, key, release_id } = req.body;
     if (!project || !requirementName || !status || !statusDate || !sprint) {
         return res.status(400).json({ error: "Missing required fields (project, requirementName, status, statusDate, sprint)" });
     }
-    project = project.trim();
-    const requirementUserIdentifier = requirementName.trim();
-    status = status.trim();
-    sprint = sprint.trim();
-    comment = comment ? comment.trim() : null;
-    link = link ? link.trim() : null;
-    type = type ? type.trim() : null;
-    tags = tags ? tags.trim() : null;
-    const itemKey = key ? key.trim() : null;
-    const finalReleaseId = release_id || null;
-    const now = new Date().toISOString();
+    
+    try {
+        const projectId = await getProjectId(project.trim());
+        const requirementUserIdentifier = requirementName.trim();
+        status = status.trim();
+        sprint = sprint.trim();
+        comment = comment ? comment.trim() : null;
+        link = link ? link.trim() : null;
+        type = type ? type.trim() : null;
+        tags = tags ? tags.trim() : null;
+        const itemKey = key ? key.trim() : null;
+        const finalReleaseId = release_id || null;
+        const now = new Date().toISOString();
 
-    db.serialize(() => {
-        const insertSql = `INSERT INTO activities (project, requirementUserIdentifier, status, statusDate, comment, sprint, link, type, tags, key, release_id, isCurrent, requirementGroupId, created_at, updated_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, ?, ?)`;
-        db.run(insertSql, [project, requirementUserIdentifier, status, statusDate, comment, sprint, link, type, tags, itemKey, finalReleaseId, now, now], function(err) {
-            if (err) {
-                return res.status(400).json({ error: "Failed to insert activity: " + err.message });
-            }
-            const newActivityDbId = this.lastID;
-            let finalRequirementGroupId;
+        db.serialize(() => {
+            const insertSql = `INSERT INTO activities (project_id, requirementUserIdentifier, status, statusDate, comment, sprint, link, type, tags, key, release_id, isCurrent, requirementGroupId, created_at, updated_at)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, ?, ?)`;
+            db.run(insertSql, [projectId, requirementUserIdentifier, status, statusDate, comment, sprint, link, type, tags, itemKey, finalReleaseId, now, now], function(err) {
+                if (err) {
+                    return res.status(400).json({ error: "Failed to insert activity: " + err.message });
+                }
+                const newActivityDbId = this.lastID;
+                let finalRequirementGroupId = existingRequirementGroupId || newActivityDbId;
 
-            if (existingRequirementGroupId) {
-                finalRequirementGroupId = existingRequirementGroupId;
-            } else {
-                finalRequirementGroupId = newActivityDbId;
-            }
-
-            db.run(`UPDATE activities SET requirementGroupId = ? WHERE id = ?`,
-                [finalRequirementGroupId, newActivityDbId],
-                (updateGroupIdErr) => {
+                db.run(`UPDATE activities SET requirementGroupId = ? WHERE id = ?`, [finalRequirementGroupId, newActivityDbId], (updateGroupIdErr) => {
                     if (updateGroupIdErr) console.error("Error setting requirementGroupId:", updateGroupIdErr.message);
                     
                     const updateOldSql = `UPDATE activities SET isCurrent = 0 WHERE requirementGroupId = ? AND id != ?`;
@@ -262,10 +257,12 @@ app.post("/api/activities", (req, res) => {
                             }
                         });
                     });
-                }
-            );
+                });
+            });
         });
-    });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
 app.put("/api/activities/:activityId", (req, res) => {
@@ -291,6 +288,39 @@ app.put("/api/activities/:activityId", (req, res) => {
         if (err) return res.status(400).json({ error: err.message });
         if (this.changes === 0) return res.status(404).json({ error: `Activity with id ${activityDbId} not found.` });
         res.json({ message: "success", data: { id: activityDbId, changes: this.changes }});
+    });
+});
+
+app.get("/api/requirements/:requirementGroupId/changes", (req, res) => {
+    const groupId = parseInt(req.params.requirementGroupId, 10);
+    if (isNaN(groupId)) {
+        return res.status(400).json({ error: "Invalid requirementGroupId format." });
+    }
+    const sql = "SELECT id, reason, changed_at FROM requirement_changes WHERE requirement_group_id = ? ORDER BY changed_at DESC";
+    db.all(sql, [groupId], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: "Database error while fetching changes." });
+        }
+        res.json({ message: "success", data: rows });
+    });
+});
+
+app.post("/api/requirements/:requirementGroupId/changes", (req, res) => {
+    const groupId = parseInt(req.params.requirementGroupId, 10);
+    const { reason } = req.body;
+    if (isNaN(groupId)) {
+        return res.status(400).json({ error: "Invalid requirementGroupId format." });
+    }
+
+    const sql = `INSERT INTO requirement_changes (requirement_group_id, reason) VALUES (?, ?)`;
+    db.run(sql, [groupId, reason ? reason.trim() : null], function(err) {
+        if (err) {
+            return res.status(500).json({ error: "Database error while logging change." });
+        }
+        res.status(201).json({
+            message: "Change logged successfully.",
+            data: { id: this.lastID, requirement_group_id: groupId, reason }
+        });
     });
 });
 
@@ -345,42 +375,53 @@ app.delete("/api/requirements/:requirementGroupId", (req, res) => {
     }
     db.serialize(() => {
         db.run("BEGIN TRANSACTION");
-        const deleteLinksSql = "DELETE FROM defect_requirement_links WHERE requirement_group_id = ?";
-        db.run(deleteLinksSql, [groupId], function(deleteLinksErr) {
-            if (deleteLinksErr) {
+
+        const deleteChangesSql = "DELETE FROM requirement_changes WHERE requirement_group_id = ?";
+        db.run(deleteChangesSql, [groupId], function(deleteChangesErr) {
+            if (deleteChangesErr) {
                 db.run("ROLLBACK");
-                return res.status(400).json({ error: deleteLinksErr.message });
+                return res.status(400).json({ error: deleteChangesErr.message });
             }
-            const deleteActivitiesSql = "DELETE FROM activities WHERE requirementGroupId = ?";
-            db.run(deleteActivitiesSql, [groupId], function(deleteActivitiesErr) {
-                if (deleteActivitiesErr) {
+
+            const deleteLinksSql = "DELETE FROM defect_requirement_links WHERE requirement_group_id = ?";
+            db.run(deleteLinksSql, [groupId], function(deleteLinksErr) {
+                if (deleteLinksErr) {
                     db.run("ROLLBACK");
-                    return res.status(400).json({ error: deleteActivitiesErr.message });
+                    return res.status(400).json({ error: deleteLinksErr.message });
                 }
-                if (this.changes === 0) {
-                    db.run("ROLLBACK");
-                    return res.status(404).json({ error: `Requirement group with ID ${groupId} not found.` });
-                }
-                db.run("COMMIT");
-                res.json({
-                    message: `Requirement group ${groupId} and its activities/links deleted.`,
-                    changes: this.changes
+
+                const deleteActivitiesSql = "DELETE FROM activities WHERE requirementGroupId = ?";
+                db.run(deleteActivitiesSql, [groupId], function(deleteActivitiesErr) {
+                    if (deleteActivitiesErr) {
+                        db.run("ROLLBACK");
+                        return res.status(400).json({ error: deleteActivitiesErr.message });
+                    }
+                    if (this.changes === 0) {
+                        db.run("ROLLBACK");
+                        return res.status(404).json({ error: `Requirement group with ID ${groupId} not found.` });
+                    }
+                    db.run("COMMIT");
+                    res.json({
+                        message: `Requirement group ${groupId} and its associated data deleted.`,
+                        changes: this.changes
+                    });
                 });
             });
         });
     });
 });
 
-app.post('/api/import/validate', upload.single('file'), (req, res) => {
+app.post('/api/import/validate', async (req, res) => {
     const { project } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
     if (!project) return res.status(400).json({ error: 'Project is required.' });
 
     try {
+        const projectId = await getProjectId(project);
         const { validRows, skippedCount } = processExcelData(req.file.buffer);
 
-        const getExistingKeysSql = `SELECT key FROM activities WHERE project = ? AND key IS NOT NULL AND key != ''`;
-        db.all(getExistingKeysSql, [project], (err, existingRows) => {
+        const getExistingKeysSql = `SELECT key FROM activities WHERE project_id = ? AND key IS NOT NULL AND key != ''`;
+        db.all(getExistingKeysSql, [projectId], (err, existingRows) => {
             if (err) return res.status(500).json({ error: "Failed to check for existing requirements." });
 
             const existingKeys = new Set(existingRows.map(r => r.key));
@@ -402,20 +443,20 @@ app.post('/api/import/validate', upload.single('file'), (req, res) => {
     }
 });
 
-app.post('/api/import/requirements', upload.single('file'), (req, res) => {
+app.post('/api/import/requirements', async (req, res) => {
     const { project, sprint, release_id } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
     if (!project || !sprint) return res.status(400).json({ error: 'Project and Sprint are required.' });
     
-    const finalReleaseId = release_id || null;
-
     try {
+        const projectId = await getProjectId(project);
+        const finalReleaseId = release_id || null;
         const { validRows, skippedCount } = processExcelData(req.file.buffer);
         const now = new Date().toISOString();
         const statusDate = now.split('T')[0];
 
-        const getExistingDataSql = `SELECT key, requirementUserIdentifier FROM activities WHERE project = ?`;
-        db.all(getExistingDataSql, [project], (err, existingRows) => {
+        const getExistingDataSql = `SELECT key, requirementUserIdentifier FROM activities WHERE project_id = ?`;
+        db.all(getExistingDataSql, [projectId], (err, existingRows) => {
             if (err) return res.status(500).json({ error: "Failed to check for existing requirements." });
             
             const existingKeys = new Set(existingRows.map(r => r.key).filter(Boolean));
@@ -447,14 +488,14 @@ app.post('/api/import/requirements', upload.single('file'), (req, res) => {
 
             db.serialize(() => {
                 db.run("BEGIN TRANSACTION");
-                const insertSql = `INSERT INTO activities (project, requirementUserIdentifier, status, statusDate, sprint, link, type, tags, key, release_id, isCurrent, requirementGroupId, created_at, updated_at)
+                const insertSql = `INSERT INTO activities (project_id, requirementUserIdentifier, status, statusDate, sprint, link, type, tags, key, release_id, isCurrent, requirementGroupId, created_at, updated_at)
                                    VALUES (?, ?, 'To Do', ?, ?, ?, ?, ?, ?, ?, 1, NULL, ?, ?)`;
                 
                 let completedInserts = 0;
                 let successfulInserts = 0;
 
                 itemsToImport.forEach(item => {
-                    db.run(insertSql, [project, item.title, statusDate, sprint, item.link, item.type, item.tags, item.key, finalReleaseId, now, now], function(err) {
+                    db.run(insertSql, [projectId, item.title, statusDate, sprint, item.link, item.type, item.tags, item.key, finalReleaseId, now, now], function(err) {
                         if (err) {
                             console.error("Error inserting imported activity:", err.message);
                         } else {
@@ -486,16 +527,17 @@ app.post('/api/import/requirements', upload.single('file'), (req, res) => {
     }
 });
 
-app.post('/api/import/defects/validate', upload.single('file'), (req, res) => {
+app.post('/api/import/defects/validate', async (req, res) => {
     const { project } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
     if (!project) return res.status(400).json({ error: 'Project is required.' });
 
     try {
+        const projectId = await getProjectId(project);
         const { validRows, skippedCount } = processDefectExcelData(req.file.buffer);
 
-        const getExistingLinksSql = `SELECT link FROM defects WHERE project = ? AND link IS NOT NULL`;
-        db.all(getExistingLinksSql, [project], (err, existingRows) => {
+        const getExistingLinksSql = `SELECT link FROM defects WHERE project_id = ? AND link IS NOT NULL`;
+        db.all(getExistingLinksSql, [projectId], (err, existingRows) => {
             if (err) return res.status(500).json({ error: "Failed to check for existing defects." });
 
             const existingLinks = new Set(existingRows.map(r => r.link));
@@ -517,17 +559,18 @@ app.post('/api/import/defects/validate', upload.single('file'), (req, res) => {
     }
 });
 
-app.post('/api/import/defects', upload.single('file'), (req, res) => {
+app.post('/api/import/defects', async (req, res) => {
     const { project } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
     if (!project) return res.status(400).json({ error: 'Project is required.' });
 
     try {
+        const projectId = await getProjectId(project);
         const { validRows, skippedCount } = processDefectExcelData(req.file.buffer);
         const created_date = new Date().toISOString().split('T')[0];
 
-        const getExistingDataSql = `SELECT link, title FROM defects WHERE project = ?`;
-        db.all(getExistingDataSql, [project], (err, existingRows) => {
+        const getExistingDataSql = `SELECT link, title FROM defects WHERE project_id = ?`;
+        db.all(getExistingDataSql, [projectId], (err, existingRows) => {
             if (err) return res.status(500).json({ error: "Failed to check for existing defects." });
 
             const existingLinks = new Set(existingRows.map(r => r.link).filter(Boolean));
@@ -558,7 +601,7 @@ app.post('/api/import/defects', upload.single('file'), (req, res) => {
 
             db.serialize(() => {
                 db.run("BEGIN TRANSACTION");
-                const insertDefectSql = `INSERT INTO defects (project, title, area, status, link, created_date) VALUES (?, ?, ?, ?, ?, ?)`;
+                const insertDefectSql = `INSERT INTO defects (project_id, title, area, status, link, created_date) VALUES (?, ?, ?, ?, ?, ?)`;
                 const insertHistorySql = `INSERT INTO defect_history (defect_id, changes_summary, comment) VALUES (?, ?, ?)`;
                 
                 let completedInserts = 0;
@@ -568,7 +611,7 @@ app.post('/api/import/defects', upload.single('file'), (req, res) => {
                     const defaultArea = 'Imported';
                     const defaultStatus = 'Assigned to Developer';
 
-                    db.run(insertDefectSql, [project, item.title, defaultArea, defaultStatus, item.link, created_date], function(err) {
+                    db.run(insertDefectSql, [projectId, item.title, defaultArea, defaultStatus, item.link, created_date], function(err) {
                         if (err) {
                             console.error("Error inserting imported defect:", err.message);
                         } else {
@@ -603,65 +646,81 @@ app.post('/api/import/defects', upload.single('file'), (req, res) => {
     }
 });
 
-app.get("/api/notes/:project", (req, res) => {
-    let project = req.params.project;
-    if (project) project = project.trim();
-    const sql = "SELECT noteDate, noteText FROM notes WHERE project = ? ORDER BY noteDate DESC";
-    db.all(sql, [project], (err, rows) => {
-        if (err) return res.status(400).json({ error: err.message });
-        const notesMap = {};
-        rows.forEach(row => { notesMap[row.noteDate] = row.noteText; });
-        res.json({ message: "success", data: notesMap });
-    });
+app.get("/api/notes/:project", async (req, res) => {
+    try {
+        const projectId = await getProjectId(req.params.project);
+        const sql = "SELECT noteDate, noteText FROM notes WHERE project_id = ? ORDER BY noteDate DESC";
+        db.all(sql, [projectId], (err, rows) => {
+            if (err) return res.status(400).json({ error: err.message });
+            const notesMap = {};
+            rows.forEach(row => { notesMap[row.noteDate] = row.noteText; });
+            res.json({ message: "success", data: notesMap });
+        });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
-app.post("/api/notes", (req, res) => {
+app.post("/api/notes", async (req, res) => {
     let { project, noteDate, noteText } = req.body;
     if (!project || !noteDate) {
         return res.status(400).json({ error: "Project and noteDate are required" });
     }
-    project = project.trim();
-    const trimmedNoteText = noteText.trim();
-    if (trimmedNoteText === "") {
-        const deleteSql = "DELETE FROM notes WHERE project = ? AND noteDate = ?";
-        db.run(deleteSql, [project, noteDate], function(err) {
-            if (err) return res.status(400).json({ error: err.message });
-            if (this.changes > 0) {
-                res.json({ message: "Note deleted successfully.", action: "deleted", data: { project, noteDate } });
-            } else {
-                res.json({ message: "No note found to delete.", action: "none", data: { project, noteDate } });
-            }
-        });
-    } else {
-        const upsertSql = `INSERT INTO notes (project, noteDate, noteText) VALUES (?, ?, ?)
-                           ON CONFLICT(project, noteDate) DO UPDATE SET noteText = excluded.noteText;`;
-        db.run(upsertSql, [project, noteDate, trimmedNoteText], function(err) {
-            if (err) return res.status(400).json({ error: err.message });
-            res.json({ message: "Note saved successfully.", action: "saved", data: { project, noteDate, noteText: trimmedNoteText } });
-        });
+    try {
+        const projectId = await getProjectId(project);
+        const trimmedNoteText = noteText.trim();
+        if (trimmedNoteText === "") {
+            const deleteSql = "DELETE FROM notes WHERE project_id = ? AND noteDate = ?";
+            db.run(deleteSql, [projectId, noteDate], function(err) {
+                if (err) return res.status(400).json({ error: err.message });
+                if (this.changes > 0) {
+                    res.json({ message: "Note deleted successfully.", action: "deleted", data: { project, noteDate } });
+                } else {
+                    res.json({ message: "No note found to delete.", action: "none", data: { project, noteDate } });
+                }
+            });
+        } else {
+            const upsertSql = `INSERT INTO notes (project_id, noteDate, noteText) VALUES (?, ?, ?)
+                               ON CONFLICT(project_id, noteDate) DO UPDATE SET noteText = excluded.noteText;`;
+            db.run(upsertSql, [projectId, noteDate, trimmedNoteText], function(err) {
+                if (err) return res.status(400).json({ error: err.message });
+                res.json({ message: "Note saved successfully.", action: "saved", data: { project, noteDate, noteText: trimmedNoteText } });
+            });
+        }
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
     }
 });
 
-app.get("/api/retrospective/:project", (req, res) => {
-    const project = req.params.project.trim();
-    const sql = "SELECT * FROM retrospective_items WHERE project = ? ORDER BY created_at DESC";
-    db.all(sql, [project], (err, rows) => {
-        if (err) return res.status(400).json({ "error": err.message });
-        res.json({ message: "success", data: rows });
-    });
+app.get("/api/retrospective/:project", async (req, res) => {
+    try {
+        const projectId = await getProjectId(req.params.project);
+        const sql = "SELECT * FROM retrospective_items WHERE project_id = ? ORDER BY created_at DESC";
+        db.all(sql, [projectId], (err, rows) => {
+            if (err) return res.status(400).json({ "error": err.message });
+            res.json({ message: "success", data: rows });
+        });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
-app.post("/api/retrospective", (req, res) => {
+app.post("/api/retrospective", async (req, res) => {
     let { project, column_type, description, item_date } = req.body;
     if (!project || !column_type || !description || !item_date) {
         return res.status(400).json({ error: "Missing required fields" });
     }
-    project = project.trim(); column_type = column_type.trim(); description = description.trim(); item_date = item_date.trim();
-    const sql = `INSERT INTO retrospective_items (project, column_type, description, item_date) VALUES (?,?,?,?)`;
-    db.run(sql, [project, column_type, description, item_date], function (err) {
-        if (err) return res.status(400).json({ "error": err.message });
-        res.json({ message: "success", data: { id: this.lastID, project, column_type, description, item_date } });
-    });
+    try {
+        const projectId = await getProjectId(project.trim());
+        column_type = column_type.trim(); description = description.trim(); item_date = item_date.trim();
+        const sql = `INSERT INTO retrospective_items (project_id, column_type, description, item_date) VALUES (?,?,?,?)`;
+        db.run(sql, [projectId, column_type, description, item_date], function (err) {
+            if (err) return res.status(400).json({ "error": err.message });
+            res.json({ message: "success", data: { id: this.lastID, project, column_type, description, item_date } });
+        });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
 app.put("/api/retrospective/:id", (req, res) => {
@@ -695,73 +754,88 @@ app.delete("/api/retrospective/:id", (req, res) => {
 });
 
 // START: Release Endpoints
-app.get("/api/releases/:project", (req, res) => {
-    const project = req.params.project.trim();
-    const sql = "SELECT id, name, release_date, is_current, project FROM releases WHERE project = ? ORDER BY release_date DESC";
-    db.all(sql, [project], (err, rows) => {
-        if (err) return res.status(400).json({ "error": err.message });
-        res.json({ message: "success", data: rows });
-    });
+app.get("/api/releases/:project", async (req, res) => {
+    try {
+        const projectId = await getProjectId(req.params.project);
+        const sql = "SELECT id, name, release_date, is_current FROM releases WHERE project_id = ? ORDER BY release_date DESC";
+        db.all(sql, [projectId], (err, rows) => {
+            if (err) return res.status(400).json({ "error": err.message });
+            const data = rows.map(r => ({...r, project: req.params.project}));
+            res.json({ message: "success", data });
+        });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
-app.post("/api/releases", (req, res) => {
+app.post("/api/releases", async (req, res) => {
     let { project, name, release_date, is_current } = req.body;
     if (!project || !name || !release_date) {
         return res.status(400).json({ error: "Project, name, and release date are required." });
     }
-    db.serialize(() => {
-        db.run("BEGIN TRANSACTION");
-        if (is_current) {
-            db.run(`UPDATE releases SET is_current = 0 WHERE project = ?`, [project]);
-        }
-        const sql = `INSERT INTO releases (project, name, release_date, is_current) VALUES (?, ?, ?, ?)`;
-        db.run(sql, [project, name, release_date, is_current ? 1 : 0], function(err) {
-            if (err) {
-                db.run("ROLLBACK");
-                if (err.message.includes("UNIQUE constraint failed")) {
-                    return res.status(409).json({ "error": `A release named '${name}' already exists for project '${project}'.` });
-                }
-                return res.status(400).json({ "error": err.message });
+    try {
+        const projectId = await getProjectId(project);
+        db.serialize(() => {
+            db.run("BEGIN TRANSACTION");
+            if (is_current) {
+                db.run(`UPDATE releases SET is_current = 0 WHERE project_id = ?`, [projectId]);
             }
-            const newId = this.lastID;
-            db.run("COMMIT", (commitErr) => {
-                if (commitErr) return res.status(500).json({ "error": "Failed to commit transaction: " + commitErr.message });
-                res.status(201).json({ message: "Release created successfully", data: { id: newId, project, name, release_date, is_current } });
+            const sql = `INSERT INTO releases (project_id, name, release_date, is_current) VALUES (?, ?, ?, ?)`;
+            db.run(sql, [projectId, name, release_date, is_current ? 1 : 0], function(err) {
+                if (err) {
+                    db.run("ROLLBACK");
+                    if (err.message.includes("UNIQUE constraint failed")) {
+                        return res.status(409).json({ "error": `A release named '${name}' already exists for project '${project}'.` });
+                    }
+                    return res.status(400).json({ "error": err.message });
+                }
+                const newId = this.lastID;
+                db.run("COMMIT", (commitErr) => {
+                    if (commitErr) return res.status(500).json({ "error": "Failed to commit transaction: " + commitErr.message });
+                    res.status(201).json({ message: "Release created successfully", data: { id: newId, project, name, release_date, is_current } });
+                });
             });
         });
-    });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
-app.put("/api/releases/:id", (req, res) => {
+app.put("/api/releases/:id", async (req, res) => {
     const releaseId = req.params.id;
     const { name, release_date, is_current, project } = req.body;
     if (!name || !release_date || !project) {
         return res.status(400).json({ error: "Name, release date, and project are required for update." });
     }
-    db.serialize(() => {
-        db.run("BEGIN TRANSACTION");
-        if (is_current) {
-            db.run(`UPDATE releases SET is_current = 0 WHERE project = ? AND id != ?`, [project, releaseId]);
-        }
-        const sql = `UPDATE releases SET name = ?, release_date = ?, is_current = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-        db.run(sql, [name, release_date, is_current ? 1 : 0, releaseId], function(err) {
-            if (err) {
-                db.run("ROLLBACK");
-                if (err.message.includes("UNIQUE constraint failed")) {
-                    return res.status(409).json({ "error": `A release named '${name}' already exists for project '${project}'.` });
+    try {
+        const projectId = await getProjectId(project);
+        db.serialize(() => {
+            db.run("BEGIN TRANSACTION");
+            if (is_current) {
+                db.run(`UPDATE releases SET is_current = 0 WHERE project_id = ? AND id != ?`, [projectId, releaseId]);
+            }
+            const sql = `UPDATE releases SET name = ?, release_date = ?, is_current = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+            db.run(sql, [name, release_date, is_current ? 1 : 0, releaseId], function(err) {
+                if (err) {
+                    db.run("ROLLBACK");
+                    if (err.message.includes("UNIQUE constraint failed")) {
+                        return res.status(409).json({ "error": `A release named '${name}' already exists for project '${project}'.` });
+                    }
+                    return res.status(400).json({ "error": err.message });
                 }
-                return res.status(400).json({ "error": err.message });
-            }
-            if (this.changes === 0) {
-                db.run("ROLLBACK");
-                return res.status(404).json({ error: `Release with id ${releaseId} not found.` });
-            }
-            db.run("COMMIT", (commitErr) => {
-                if (commitErr) return res.status(500).json({ "error": "Failed to commit transaction: " + commitErr.message });
-                res.json({ message: "Release updated successfully", data: { id: releaseId, changes: this.changes } });
+                if (this.changes === 0) {
+                    db.run("ROLLBACK");
+                    return res.status(404).json({ error: `Release with id ${releaseId} not found.` });
+                }
+                db.run("COMMIT", (commitErr) => {
+                    if (commitErr) return res.status(500).json({ "error": "Failed to commit transaction: " + commitErr.message });
+                    res.json({ message: "Release updated successfully", data: { id: releaseId, changes: this.changes } });
+                });
             });
         });
-    });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
 app.delete("/api/releases/:id", (req, res) => {
@@ -776,7 +850,7 @@ app.delete("/api/releases/:id", (req, res) => {
 // END: Release Endpoints
 
 app.get("/api/defects/all", (req, res) => {
-    const defectsSql = "SELECT * FROM defects ORDER BY created_at DESC";
+    const defectsSql = "SELECT d.*, p.name as project FROM defects d JOIN projects p ON d.project_id = p.id ORDER BY d.created_at DESC";
     const linksSql = `SELECT l.defect_id, l.requirement_group_id, a.requirementUserIdentifier, a.sprint
                       FROM defect_requirement_links l
                       JOIN activities a ON l.requirement_group_id = a.requirementGroupId
@@ -809,47 +883,53 @@ app.get("/api/defects/all", (req, res) => {
     });
 });
 
-app.get("/api/defects/:project", (req, res) => {
+app.get("/api/defects/:project", async (req, res) => {
     const project = req.params.project.trim();
     const statusType = req.query.statusType || 'active';
 
-    let defectsSql;
-    if (statusType === 'closed') {
-        defectsSql = "SELECT * FROM defects WHERE project = ? AND status = 'Closed' ORDER BY updated_at DESC";
-    } else {
-        defectsSql = "SELECT * FROM defects WHERE project = ? AND status != 'Closed' ORDER BY created_at DESC";
-    }
-    
-    const linksSql = `SELECT l.defect_id, l.requirement_group_id, a.requirementUserIdentifier, a.sprint
-                      FROM defect_requirement_links l
-                      JOIN activities a ON l.requirement_group_id = a.requirementGroupId
-                      WHERE a.isCurrent = 1 AND a.project = ?`;
+    try {
+        const projectId = await getProjectId(project);
+        let defectsSql;
+        if (statusType === 'closed') {
+            defectsSql = "SELECT * FROM defects WHERE project_id = ? AND status = 'Closed' ORDER BY updated_at DESC";
+        } else {
+            defectsSql = "SELECT * FROM defects WHERE project_id = ? AND status != 'Closed' ORDER BY created_at DESC";
+        }
+        
+        const linksSql = `SELECT l.defect_id, l.requirement_group_id, a.requirementUserIdentifier, a.sprint
+                          FROM defect_requirement_links l
+                          JOIN activities a ON l.requirement_group_id = a.requirementGroupId
+                          WHERE a.isCurrent = 1 AND a.project_id = ?`;
 
-    Promise.all([
-        new Promise((resolve, reject) => db.all(defectsSql, [project], (err, rows) => err ? reject(err) : resolve(rows))),
-        new Promise((resolve, reject) => db.all(linksSql, [project], (err, rows) => err ? reject(err) : resolve(rows)))
-    ]).then(([defectRows, linkRows]) => {
-        const linksMap = new Map();
-        linkRows.forEach(link => {
-            if (!linksMap.has(link.defect_id)) {
-                linksMap.set(link.defect_id, []);
-            }
-            linksMap.get(link.defect_id).push({
-                groupId: link.requirement_group_id,
-                name: link.requirementUserIdentifier,
-                sprint: link.sprint
+        Promise.all([
+            new Promise((resolve, reject) => db.all(defectsSql, [projectId], (err, rows) => err ? reject(err) : resolve(rows))),
+            new Promise((resolve, reject) => db.all(linksSql, [projectId], (err, rows) => err ? reject(err) : resolve(rows)))
+        ]).then(([defectRows, linkRows]) => {
+            const linksMap = new Map();
+            linkRows.forEach(link => {
+                if (!linksMap.has(link.defect_id)) {
+                    linksMap.set(link.defect_id, []);
+                }
+                linksMap.get(link.defect_id).push({
+                    groupId: link.requirement_group_id,
+                    name: link.requirementUserIdentifier,
+                    sprint: link.sprint
+                });
             });
+
+            const defectsWithLinks = defectRows.map(defect => ({
+                ...defect,
+                project: project, // Add project name back for frontend
+                linkedRequirements: linksMap.get(defect.id) || []
+            }));
+
+            res.json({ message: "success", data: defectsWithLinks });
+        }).catch(err => {
+            res.status(400).json({ "error": err.message });
         });
-
-        const defectsWithLinks = defectRows.map(defect => ({
-            ...defect,
-            linkedRequirements: linksMap.get(defect.id) || []
-        }));
-
-        res.json({ message: "success", data: defectsWithLinks });
-    }).catch(err => {
-        res.status(400).json({ "error": err.message });
-    });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
 app.get("/api/defects/:defectId/history", (req, res) => {
@@ -861,87 +941,98 @@ app.get("/api/defects/:defectId/history", (req, res) => {
     });
 });
 
-app.get("/api/defects/:project/return-counts", (req, res) => {
+app.get("/api/defects/:project/return-counts", async (req, res) => {
     const project = req.params.project.trim();
     const statusType = req.query.statusType || 'active';
 
-    let statusCondition = "d.status != 'Closed'";
-    if (statusType === 'closed') {
-        statusCondition = "d.status = 'Closed'";
-    }
-
-    const sql = `
-        SELECT
-            d.id,
-            d.title,
-            COUNT(h.id) as return_count
-        FROM
-            defects d
-        JOIN
-            defect_history h ON d.id = h.defect_id
-        WHERE
-            d.project = ?
-            AND ${statusCondition}
-            AND h.changes_summary LIKE '%"new":"Assigned to Developer"%'
-        GROUP BY
-            d.id, d.title
-        HAVING
-            return_count > 0
-        ORDER BY
-            return_count DESC
-    `;
-    db.all(sql, [project], (err, rows) => {
-        if (err) {
-            return res.status(400).json({ "error": err.message });
+    try {
+        const projectId = await getProjectId(project);
+        let statusCondition = "d.status != 'Closed'";
+        if (statusType === 'closed') {
+            statusCondition = "d.status = 'Closed'";
         }
-        res.json({ message: "success", data: rows });
-    });
+
+        const sql = `
+            SELECT
+                d.id,
+                d.title,
+                COUNT(h.id) as return_count
+            FROM
+                defects d
+            JOIN
+                defect_history h ON d.id = h.defect_id
+            WHERE
+                d.project_id = ?
+                AND ${statusCondition}
+                AND h.changes_summary LIKE '%"new":"Assigned to Developer"%'
+            GROUP BY
+                d.id, d.title
+            HAVING
+                return_count > 0
+            ORDER BY
+                return_count DESC
+        `;
+        db.all(sql, [projectId], (err, rows) => {
+            if (err) {
+                return res.status(400).json({ "error": err.message });
+            }
+            res.json({ message: "success", data: rows });
+        });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
-app.post("/api/defects", (req, res) => {
+app.post("/api/defects", async (req, res) => {
     let { project, title, description, area, status, link, created_date, comment, linkedRequirementGroupIds } = req.body;
     if (!project || !title || !area || !status || !created_date) {
         return res.status(400).json({ error: "Missing required fields" });
     }
-    project = project.trim(); title = title.trim(); area = area.trim(); status = status.trim();
-    created_date = new Date(created_date).toISOString().split('T')[0];
-    link = link ? link.trim() : null; description = description ? description.trim() : null;
-    comment = comment ? comment.trim() : null;
+    
+    try {
+        const projectId = await getProjectId(project.trim());
+        title = title.trim(); area = area.trim(); status = status.trim();
+        created_date = new Date(created_date).toISOString().split('T')[0];
+        link = link ? link.trim() : null; description = description ? description.trim() : null;
+        comment = comment ? comment.trim() : null;
 
-    db.serialize(() => {
-        db.run("BEGIN TRANSACTION");
-        const insertDefectSql = `INSERT INTO defects (project, title, description, area, status, link, created_date) VALUES (?,?,?,?,?,?,?)`;
-        const defectParams = [project, title, description, area, status, link, created_date];
-        
-        db.run(insertDefectSql, defectParams, function(err) {
-            if (err) {
-                db.run("ROLLBACK");
-                return res.status(400).json({ "error": err.message });
-            }
-            const defectId = this.lastID;
+        db.serialize(() => {
+            db.run("BEGIN TRANSACTION");
+            const insertDefectSql = `INSERT INTO defects (project_id, title, description, area, status, link, created_date) VALUES (?,?,?,?,?,?,?)`;
+            const defectParams = [projectId, title, description, area, status, link, created_date];
             
-            if (linkedRequirementGroupIds && linkedRequirementGroupIds.length > 0) {
-                const linkInsertSql = `INSERT INTO defect_requirement_links (defect_id, requirement_group_id) VALUES (?, ?)`;
-                linkedRequirementGroupIds.forEach(reqId => {
-                    db.run(linkInsertSql, [defectId, reqId], (linkErr) => {
-                        if (linkErr) console.error("Error creating defect-requirement link:", linkErr.message);
+            db.run(insertDefectSql, defectParams, function(err) {
+                if (err) {
+                    db.run("ROLLBACK");
+                    return res.status(400).json({ "error": err.message });
+                }
+                const defectId = this.lastID;
+                
+                if (linkedRequirementGroupIds && linkedRequirementGroupIds.length > 0) {
+                    const linkInsertSql = `INSERT INTO defect_requirement_links (defect_id, requirement_group_id) VALUES (?, ?)`;
+                    linkedRequirementGroupIds.forEach(reqId => {
+                        db.run(linkInsertSql, [defectId, reqId], (linkErr) => {
+                            if (linkErr) console.error("Error creating defect-requirement link:", linkErr.message);
+                        });
                     });
+                }
+
+                const initialCommentForHistory = comment || "Defect created.";
+                const creationSummary = JSON.stringify({
+                    status: { old: null, new: status }, title: { old: null, new: title }, area: { old: null, new: area }
                 });
-            }
+                const insertHistorySql = `INSERT INTO defect_history (defect_id, changes_summary, comment) VALUES (?, ?, ?)`;
+                db.run(insertHistorySql, [defectId, creationSummary, initialCommentForHistory], (histErr) => {
+                    if (histErr) console.error("Error inserting initial defect history:", histErr.message);
+                });
 
-            const initialCommentForHistory = comment || "Defect created.";
-            const creationSummary = JSON.stringify({
-                status: { old: null, new: status }, title: { old: null, new: title }, area: { old: null, new: area }
+                db.run("COMMIT");
+                res.json({ message: "Defect created successfully", data: { id: defectId, project, title, status, created_date } });
             });
-            const insertHistorySql = `INSERT INTO defect_history (defect_id, changes_summary, comment) VALUES (?, ?, ?)`;
-            db.run(insertHistorySql, [defectId, creationSummary, initialCommentForHistory], (histErr) => {
-                if (histErr) console.error("Error inserting initial defect history:", histErr.message);
-            });
-
-            db.run("COMMIT");
-            res.json({ message: "Defect created successfully", data: { id: defectId, project, title, status, created_date } });
         });
-    });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
 });
 
 app.put("/api/defects/:id", (req, res) => {

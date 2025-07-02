@@ -20,10 +20,10 @@ import ConfirmationModal from './components/ConfirmationModal';
 import Toast from './components/Toast';
 import SearchComponent from './components/SearchComponent';
 import UpdateStatusModal from './components/UpdateStatusModal';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title, BarElement, CategoryScale, LinearScale } from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
 
-ChartJS.register(ArcElement, Tooltip, Legend, Title);
+ChartJS.register(ArcElement, Tooltip, Legend, Title, BarElement, CategoryScale, LinearScale);
 
 const API_BASE_URL = '/api';
 
@@ -136,10 +136,50 @@ const SprintActivitiesPage = ({
       labels: ['Done', 'To Be Tested'],
       datasets: [{
         data: [done, notDone],
-        backgroundColor: ['#28a745', '#ffc107'],
+        backgroundColor: ['#151078', '#b84459'],
         borderColor: ['#ffffff', '#ffffff'],
         borderWidth: 1,
       }],
+    };
+  };
+
+  const getChangeChartData = (reqs) => {
+    const changedReqs = reqs.filter(r => r.changeCount && r.changeCount > 0);
+    if (changedReqs.length === 0) return null;
+
+    changedReqs.sort((a, b) => b.changeCount - a.changeCount);
+
+    const splitLabelIntoLines = (label, maxCharsPerLine = 35) => {
+        const words = label.split(' ');
+        const lines = [];
+        let currentLine = '';
+        for (const word of words) {
+            if ((currentLine + ' ' + word).length > maxCharsPerLine && currentLine.length > 0) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = currentLine ? currentLine + ' ' + word : word;
+            }
+        }
+        if (currentLine) {
+            lines.push(currentLine);
+        }
+        return lines;
+    };
+
+    const fullLabels = changedReqs.map(r => r.requirementUserIdentifier);
+    const multilineLabels = fullLabels.map(label => splitLabelIntoLines(label));
+
+    return {
+        labels: multilineLabels,
+        datasets: [{
+            label: 'Number of Scope Changes',
+            data: changedReqs.map(r => r.changeCount),
+            backgroundColor: 'rgba(255, 99, 132, 0.5)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 1,
+            fullLabels: fullLabels,
+        }],
     };
   };
 
@@ -166,6 +206,48 @@ const SprintActivitiesPage = ({
   const releaseChartOptions = {
     ...baseChartOptions,
     plugins: { ...baseChartOptions.plugins, title: { ...baseChartOptions.plugins.title, text: `Active Release: ${activeRelease?.name || 'N/A'}` } }
+  };
+
+  const changeChartData = getChangeChartData(displayableRequirements);
+  const changeChartOptions = {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: { display: false },
+        title: {
+            display: true,
+            text: `Scope Changes in Sprint: ${selectedSprint}`,
+            font: { size: 16 }
+        },
+        tooltip: {
+            callbacks: {
+                title: function(context) {
+                    const dataIndex = context[0].dataIndex;
+                    const fullLabel = context[0].dataset.fullLabels[dataIndex];
+                    return fullLabel;
+                },
+                label: function(context) {
+                    let label = context.dataset.label || '';
+                    if (label) {
+                        label += ': ';
+                    }
+                    if (context.parsed.x !== null) {
+                        label += context.parsed.x;
+                    }
+                    return label;
+                }
+            }
+        }
+    },
+    scales: {
+        x: {
+            beginAtZero: true,
+            ticks: {
+                stepSize: 1
+            }
+        }
+    }
   };
 
   return (
@@ -214,7 +296,12 @@ const SprintActivitiesPage = ({
               <Pie data={releaseChartData} options={releaseChartOptions} />
             </div>
           )}
-          {!sprintChartData && !releaseChartData && (
+          {changeChartData && (
+            <div className="chart-container">
+              <Bar data={changeChartData} options={changeChartOptions} />
+            </div>
+          )}
+          {!sprintChartData && !releaseChartData && !changeChartData && (
             <div className="chart-container" style={{ flexBasis: '100%', height: 'auto' }}>
               <p>No data available for charts.</p>
             </div>
@@ -498,6 +585,30 @@ function App() {
       handleCloseEditModal();
     }
   }, [editingRequirement, fetchData, showMainMessage, handleCloseEditModal]);
+
+  const handleLogChange = useCallback(async (requirementGroupId, reason) => {
+    if (!requirementGroupId) {
+        showMainMessage("Cannot log change: Requirement ID is missing.", "error");
+        return false;
+    }
+    try {
+        const response = await fetch(`${API_BASE_URL}/requirements/${requirementGroupId}/changes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason }),
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || "Failed to log scope change.");
+        }
+        showMainMessage("Scope change logged successfully!", "success");
+        await fetchData();
+        return true;
+    } catch (error) {
+        showMainMessage(`Error: ${error.message}`, 'error');
+        return false;
+    }
+  }, [fetchData, showMainMessage]);
 
   const handleSaveHistoryEntry = useCallback(async (requirementGroupId, activityDbId, newDate, newComment) => {
     if (!activityDbId) { showMainMessage("Error: Cannot update history. Missing activity DB ID.", 'error'); return; }
@@ -977,14 +1088,14 @@ function App() {
         <Route path="/sprint-analysis" element={<SprintAnalysisPage projects={projects} showMessage={showMainMessage} />} />
         <Route path="/notes" element={<NotesPage projects={projects} apiBaseUrl={API_BASE_URL} showMessage={showMainMessage} />} />
       </Routes>
-      <HistoryModal requirement={requirementForHistory} isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} onSaveHistoryEntry={handleSaveHistoryEntry} />
+      <HistoryModal requirement={requirementForHistory} isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} onSaveHistoryEntry={handleSaveHistoryEntry} apiBaseUrl={API_BASE_URL} />
       <AddNewRequirementModal isOpen={isAddModalOpen} onClose={handleCloseAddModal} formData={newReqFormState} onFormChange={handleNewReqFormChange} onSubmit={handleAddNewRequirement} projects={projects} releases={allReleases} />
       <AddProjectModal isOpen={isAddProjectModalOpen} onClose={handleCloseAddProjectModal} onAddProject={handleAddNewProject} />
       <ImportRequirementsModal isOpen={isImportModalOpen} onClose={handleCloseImportModal} onImport={handleValidateImport} projects={projects} releases={allReleases} currentProject={selectedProject} />
       <AddReleaseModal isOpen={isAddReleaseModalOpen} onClose={() => setIsAddReleaseModalOpen(false)} onAdd={handleAddRelease} projects={projects} currentProject={selectedProject} />
       <EditReleaseModal isOpen={isEditReleaseModalOpen} onClose={() => setIsEditReleaseModalOpen(false)} onSave={handleEditRelease} onDelete={(release) => handleDeleteRequest('release', release)} releases={allReleases} projects={projects} currentProject={selectedProject} />
       <ConfirmationModal isOpen={isImportConfirmModalOpen} onClose={() => setIsImportConfirmModalOpen(false)} onConfirm={handleConfirmImport} title="Confirm Import" message={`The file contains ${importConfirmData?.newCount || 0} new item(s) and ${importConfirmData?.duplicateCount || 0} item(s) that already exist (based on 'Key'). Existing items will be imported with a modified name (e.g., 'Item Name (1)'). Do you want to proceed?`} />
-      <EditRequirementModal isOpen={isEditModalOpen} onClose={handleCloseEditModal} onSave={handleSaveRequirementEdit} requirement={editingRequirement} releases={projectReleases} />
+      <EditRequirementModal isOpen={isEditModalOpen} onClose={handleCloseEditModal} onSave={handleSaveRequirementEdit} requirement={editingRequirement} releases={projectReleases} onLogChange={handleLogChange} />
       <UpdateStatusModal isOpen={isUpdateStatusModalOpen} onClose={handleCloseUpdateStatusModal} onSave={handleConfirmStatusUpdate} requirement={statusUpdateInfo.requirement} newStatus={statusUpdateInfo.newStatus} />
       <ConfirmationModal isOpen={isDeleteConfirmModalOpen} onClose={handleCancelDelete} onConfirm={handleConfirmDelete} title={`Confirm ${deleteType.charAt(0).toUpperCase() + deleteType.slice(1)} Deletion`} message={getDeleteConfirmationMessage()} />
     </div>

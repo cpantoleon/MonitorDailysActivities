@@ -16,13 +16,16 @@ const formatDateForDisplayInternal = (dateObj) => {
     return d.toLocaleDateString();
 };
 
-const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry }) => {
+const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry, apiBaseUrl }) => {
   const [editingEntryId, setEditingEntryId] = useState(null);
   const [editFormDate, setEditFormDate] = useState('');
   const [editFormComment, setEditFormComment] = useState('');
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const commentInputRef = useRef(null);
   const [modalForRequirementId, setModalForRequirementId] = useState(null);
+  
+  const [changeHistory, setChangeHistory] = useState([]);
+  const [isLoadingChanges, setIsLoadingChanges] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -30,13 +33,31 @@ const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry }) => {
       setEditFormDate('');
       setEditFormComment('');
       setModalForRequirementId(null);
+      setChangeHistory([]);
+      setIsLoadingChanges(false);
     } else if (requirement && (requirement.id !== modalForRequirementId || !modalForRequirementId)) {
       setEditingEntryId(null);
       setEditFormDate('');
       setEditFormComment('');
       setModalForRequirementId(requirement.id);
+      
+      const fetchChanges = async () => {
+        setIsLoadingChanges(true);
+        try {
+            const response = await fetch(`${apiBaseUrl}/requirements/${requirement.id}/changes`);
+            if (!response.ok) throw new Error("Failed to fetch change history.");
+            const result = await response.json();
+            setChangeHistory(result.data || []);
+        } catch (error) {
+            console.error("Error fetching change history:", error);
+            setChangeHistory([]);
+        } finally {
+            setIsLoadingChanges(false);
+        }
+      };
+      fetchChanges();
     }
-  }, [isOpen, requirement, modalForRequirementId]);
+  }, [isOpen, requirement, modalForRequirementId, apiBaseUrl]);
 
   useEffect(() => {
     if (editingEntryId && commentInputRef.current) {
@@ -86,6 +107,8 @@ const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry }) => {
         <div ref={modalRef} className="history-modal-content">
           <h2>History for: {requirement.requirementUserIdentifier}</h2>
           <button onClick={onClose} className="history-modal-close-button">Close</button>
+          
+          <h3 style={{marginTop: '20px', marginBottom: '10px', fontSize: '1.2em', color: '#5C4033'}}>Status History</h3>
           <table className="history-modal-table">
             <thead>
               <tr><th>Status</th><th>Date</th><th>Sprint</th><th>Comment</th><th>Actions</th></tr>
@@ -111,6 +134,30 @@ const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry }) => {
               })}
             </tbody>
           </table>
+
+          {isLoadingChanges && <p>Loading scope changes...</p>}
+          {!isLoadingChanges && changeHistory.length > 0 && (
+            <>
+              <h3 style={{marginTop: '30px', marginBottom: '10px', fontSize: '1.2em', color: '#5C4033'}}>Scope Change History</h3>
+              <table className="history-modal-table">
+                <thead>
+                    <tr>
+                        <th style={{width: '30%'}}>Date of Change</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {changeHistory.map(change => (
+                        <tr key={change.id}>
+                            <td>{new Date(change.changed_at).toLocaleString()}</td>
+                            <td>{change.reason || <span style={{fontStyle: 'italic', color: '#888'}}>No reason provided.</span>}</td>
+                        </tr>
+                    ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
         </div>
       </div>
       <ConfirmationModal

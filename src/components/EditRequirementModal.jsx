@@ -4,10 +4,12 @@ import Tooltip from './Tooltip';
 import useClickOutside from '../hooks/useClickOutside';
 import ConfirmationModal from './ConfirmationModal';
 
-const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases }) => {
+const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases, onLogChange }) => {
   const [formData, setFormData] = useState({});
   const [initialFormData, setInitialFormData] = useState(null);
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+  const [changeReason, setChangeReason] = useState('');
+  const [isLogChangeVisible, setIsLogChangeVisible] = useState(false);
 
   useEffect(() => {
     if (requirement && isOpen) {
@@ -32,13 +34,15 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases }
       };
       setFormData(initialData);
       setInitialFormData(initialData);
+      setChangeReason('');
+      setIsLogChangeVisible(false);
     }
   }, [requirement, isOpen]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!initialFormData) return false;
-    return JSON.stringify(formData) !== JSON.stringify(initialFormData);
-  }, [formData, initialFormData]);
+    return JSON.stringify(formData) !== JSON.stringify(initialFormData) || changeReason.trim() !== '';
+  }, [formData, initialFormData, changeReason]);
 
   const handleCloseRequest = () => {
     if (hasUnsavedChanges) {
@@ -65,6 +69,17 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases }
     onSave(formData);
   };
 
+  const handleLogChangeClick = async () => {
+    if (!changeReason.trim()) {
+        alert("Please provide a reason for the scope change.");
+        return;
+    }
+    const success = await onLogChange(requirement.id, changeReason);
+    if (success) {
+        onClose();
+    }
+  };
+
   if (!isOpen || !requirement) return null;
 
   const sprintNumberOptions = Array.from({ length: 20 }, (_, i) => ({ value: `${i + 1}`, label: `${i + 1}` }));
@@ -85,7 +100,7 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases }
   return (
     <>
       <div className="add-new-modal-overlay">
-        <div ref={modalRef} className="add-new-modal-content">
+        <div ref={modalRef} className="add-new-modal-content" style={{maxWidth: '600px'}}>
           <h2>Edit Requirement</h2>
           <form onSubmit={handleSubmit}>
             <div className="form-group">
@@ -143,6 +158,48 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases }
               <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
             </div>
           </form>
+
+          <div style={{ borderTop: '2px solid #D2B48C', marginTop: '25px', paddingTop: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h3 style={{ margin: 0, color: '#5C4033', fontSize: '1.2em' }}>Log Scope Change</h3>
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                     <Tooltip content="Click to show/hide the section for logging a scope change. This is for tracking significant changes made during a sprint." />
+                     <button type="button" onClick={() => setIsLogChangeVisible(p => !p)} className="modal-button-cancel" style={{padding: '5px 15px'}}>
+                         {isLogChangeVisible ? 'Hide' : 'Show'}
+                     </button>
+                </div>
+            </div>
+            {isLogChangeVisible && (
+              <>
+                <p style={{fontSize: '0.9em', color: '#704214', marginTop: 0, marginBottom: '15px'}}>
+                  Use this section to record a significant change in the requirement's scope during the sprint. This action is logged separately from saving other edits.
+                </p>
+                <div className="form-group">
+                  <label htmlFor="changeReason" className="optional-label">Reason for Change:</label>
+                  <textarea 
+                    id="changeReason" 
+                    name="changeReason" 
+                    value={changeReason} 
+                    onChange={(e) => setChangeReason(e.target.value)} 
+                    rows="3" 
+                    placeholder="e.g., Added new validation rule for user input." 
+                  />
+                </div>
+                <div style={{display: 'flex', justifyContent: 'flex-end'}}>
+                    <button 
+                        type="button" 
+                        onClick={handleLogChangeClick} 
+                        className="modal-button-save"
+                        style={{backgroundColor: '#A0522D'}}
+                        disabled={!changeReason.trim()}
+                    >
+                        Log Change
+                    </button>
+                </div>
+              </>
+            )}
+          </div>
+
         </div>
       </div>
       <ConfirmationModal

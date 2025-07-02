@@ -442,6 +442,77 @@
         }
       }
     },
+    "/requirements/{requirementGroupId}/changes": {
+      "get": {
+        "summary": "Get scope change history for a requirement",
+        "tags": [
+          "Requirements"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequirementGroupIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of scope change entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RequirementChange"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Log a new scope change for a requirement",
+        "tags": [
+          "Requirements"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequirementGroupIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementChangeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Change logged successfully"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
     "/requirements/{requirementGroupId}/rename": {
       "put": {
         "summary": "Rename a requirement group",
@@ -1194,6 +1265,10 @@
             "items": {
               "$ref": "#/components/schemas/LinkedDefect"
             }
+          },
+          "changeCount": {
+            "type": "integer",
+            "description": "The number of logged scope changes for this requirement."
           }
         }
       },
@@ -1398,6 +1473,31 @@
         "properties": {
           "newRequirementName": {
             "type": "string"
+          }
+        }
+      },
+      "RequirementChange": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "changed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RequirementChangeInput": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "The reason for the scope change."
           }
         }
       },
