@@ -1,7 +1,9 @@
-// src/components/DefectHistoryModal.jsx
 import React from 'react';
+import useClickOutside from '../hooks/useClickOutside';
 
 const DefectHistoryModal = ({ isOpen, onClose, defect, history }) => {
+  const modalRef = useClickOutside(onClose);
+
   if (!isOpen || !defect) return null;
 
   const formatDate = (dateString) => {
@@ -24,9 +26,7 @@ const DefectHistoryModal = ({ isOpen, onClose, defect, history }) => {
         </ul>
       );
     } catch (e) {
-      // If it's not JSON, it might be the very first "Defect created" summary which is just a string
       if (summaryString === "Defect created." || (typeof summaryString === 'string' && summaryString.startsWith('{'))) {
-         // Attempt to parse if it looks like our new creation summary
          try {
             const summary = JSON.parse(summaryString);
              return (
@@ -40,7 +40,7 @@ const DefectHistoryModal = ({ isOpen, onClose, defect, history }) => {
                 </ul>
             );
          } catch (jsonErr) {
-            return <span>{summaryString}</span>; // Fallback if still not parsable
+            return <span>{summaryString}</span>;
          }
       }
       return <span>{summaryString}</span>;
@@ -49,7 +49,7 @@ const DefectHistoryModal = ({ isOpen, onClose, defect, history }) => {
 
   return (
     <div className="history-modal-overlay">
-      <div className="history-modal-content" style={{maxWidth: '800px'}}>
+      <div ref={modalRef} className="history-modal-content" style={{maxWidth: '800px'}}>
         <h2>History for Defect: {defect.title}</h2>
         <button onClick={onClose} className="history-modal-close-button">Close</button>
         {history.length === 0 ? (

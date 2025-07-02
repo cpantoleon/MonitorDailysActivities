@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import useClickOutside from '../hooks/useClickOutside';
+import ConfirmationModal from './ConfirmationModal';
 
 const formatDateForInputInternal = (dateObj) => {
     if (!dateObj) return '';
@@ -18,15 +20,20 @@ const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry }) => {
   const [editingEntryId, setEditingEntryId] = useState(null);
   const [editFormDate, setEditFormDate] = useState('');
   const [editFormComment, setEditFormComment] = useState('');
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const commentInputRef = useRef(null);
   const [modalForRequirementId, setModalForRequirementId] = useState(null);
 
   useEffect(() => {
     if (!isOpen) {
-      setEditingEntryId(null); setEditFormDate(''); setEditFormComment('');
+      setEditingEntryId(null);
+      setEditFormDate('');
+      setEditFormComment('');
       setModalForRequirementId(null);
     } else if (requirement && (requirement.id !== modalForRequirementId || !modalForRequirementId)) {
-      setEditingEntryId(null); setEditFormDate(''); setEditFormComment('');
+      setEditingEntryId(null);
+      setEditFormDate('');
+      setEditFormComment('');
       setModalForRequirementId(requirement.id);
     }
   }, [isOpen, requirement, modalForRequirementId]);
@@ -36,6 +43,18 @@ const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry }) => {
       commentInputRef.current.focus();
     }
   }, [editingEntryId]);
+
+  const hasUnsavedChanges = useMemo(() => editingEntryId !== null, [editingEntryId]);
+
+  const handleCloseRequest = () => {
+    if (hasUnsavedChanges) {
+      setIsCloseConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const modalRef = useClickOutside(handleCloseRequest);
 
   if (!isOpen || !requirement || !requirement.history) {
     return null;
@@ -62,37 +81,49 @@ const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry }) => {
   const displayHistory = requirement.history.slice().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   return (
-    <div className="history-modal-overlay">
-      <div className="history-modal-content">
-        <h2>History for: {requirement.requirementUserIdentifier}</h2>
-        <button onClick={onClose} className="history-modal-close-button">Close</button>
-        <table className="history-modal-table">
-          <thead>
-            <tr><th>Status</th><th>Date</th><th>Sprint</th><th>Comment</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {displayHistory.map((entry) => {
-              const isEditingThisRow = editingEntryId === entry.id;
-              return (
-                <tr key={entry.id}><td>{entry.status}</td><td>
-                    {isEditingThisRow ? (
-                      <input type="date" value={editFormDate} onChange={e => setEditFormDate(e.target.value)} />
-                    ) : ( formatDateForDisplayInternal(entry.date) )}
-                  </td><td>{entry.sprint || 'N/A'}</td><td>
-                    {isEditingThisRow ? (
-                      <input ref={commentInputRef} type="text" value={editFormComment} onChange={e => setEditFormComment(e.target.value)} placeholder="Enter comment" />
-                    ) : ( entry.comment || 'N/A' )}
-                  </td><td>
-                    {isEditingThisRow ? (
-                      <><button onClick={() => handleSaveEdit(entry)}>Save</button><button onClick={handleCancelEdit}>Cancel</button></>
-                    ) : ( entry.activityId ? <button onClick={() => handleStartEdit(entry)}>Edit</button> : null )}
-                  </td></tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <>
+      <div className="history-modal-overlay">
+        <div ref={modalRef} className="history-modal-content">
+          <h2>History for: {requirement.requirementUserIdentifier}</h2>
+          <button onClick={handleCloseRequest} className="history-modal-close-button">Close</button>
+          <table className="history-modal-table">
+            <thead>
+              <tr><th>Status</th><th>Date</th><th>Sprint</th><th>Comment</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {displayHistory.map((entry) => {
+                const isEditingThisRow = editingEntryId === entry.id;
+                return (
+                  <tr key={entry.id}><td>{entry.status}</td><td>
+                      {isEditingThisRow ? (
+                        <input type="date" value={editFormDate} onChange={e => setEditFormDate(e.target.value)} />
+                      ) : ( formatDateForDisplayInternal(entry.date) )}
+                    </td><td>{entry.sprint || 'N/A'}</td><td>
+                      {isEditingThisRow ? (
+                        <input ref={commentInputRef} type="text" value={editFormComment} onChange={e => setEditFormComment(e.target.value)} placeholder="Enter comment" />
+                      ) : ( entry.comment || 'N/A' )}
+                    </td><td>
+                      {isEditingThisRow ? (
+                        <><button onClick={() => handleSaveEdit(entry)}>Save</button><button onClick={handleCancelEdit}>Cancel</button></>
+                      ) : ( entry.activityId ? <button onClick={() => handleStartEdit(entry)}>Edit</button> : null )}
+                    </td></tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+      <ConfirmationModal
+        isOpen={isCloseConfirmOpen}
+        onClose={() => setIsCloseConfirmOpen(false)}
+        onConfirm={() => {
+          setIsCloseConfirmOpen(false);
+          onClose();
+        }}
+        title="Unsaved Changes"
+        message="You are currently editing a history entry. Are you sure you want to close and discard your changes?"
+      />
+    </>
   );
 };
 

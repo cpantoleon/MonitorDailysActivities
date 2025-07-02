@@ -1,12 +1,14 @@
-// src/components/ConfirmationModal.jsx
 import React from 'react';
+import useClickOutside from '../hooks/useClickOutside';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
   if (!isOpen) return null;
 
+  const modalRef = useClickOutside(onClose);
+
   return (
     <div className="confirmation-modal-overlay">
-      <div className="confirmation-modal-content">
+      <div ref={modalRef} className="confirmation-modal-content">
         <h3>{title || 'Confirm Action'}</h3>
         <p>{message || 'Are you sure?'}</p>
         <div className="modal-actions">

@@ -1,72 +1,100 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Select from 'react-select';
 import Tooltip from './Tooltip';
+import useClickOutside from '../hooks/useClickOutside';
+import ConfirmationModal from './ConfirmationModal';
+import GifPlayerModal from './GifPlayerModal'; // Import the new component
 
 const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases }) => {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [targetProject, setTargetProject] = useState('');
-  const [targetSprint, setTargetSprint] = useState('1');
-  const [targetReleaseId, setTargetReleaseId] = useState('');
-  const [isBacklog, setIsBacklog] = useState(false);
-  const [error, setError] = useState('');
+  const getInitialState = () => ({
+    selectedFile: null,
+    targetProject: '',
+    targetSprint: '1',
+    targetReleaseId: '',
+    isBacklog: false,
+  });
 
+  const [state, setState] = useState(getInitialState());
+  const [initialState, setInitialState] = useState(null);
+  const [error, setError] = useState('');
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+  const [isGifModalOpen, setIsGifModalOpen] = useState(false); // State for the GIF modal
+
+  useEffect(() => {
+    if (isOpen) {
+      const initial = getInitialState();
+      setState(initial);
+      setInitialState(initial);
+    } else {
+      setError('');
+    }
+  }, [isOpen]);
+
+  const releaseOptions = useMemo(() => {
+    if (!state.targetProject) return [];
+    return releases
+      .filter(r => r.project === state.targetProject)
+      .map(r => ({
+        value: r.id,
+        label: `${r.name} ${r.is_current ? '(Current)' : ''}`
+      }));
+  }, [state.targetProject, releases]);
+
+  useEffect(() => {
+    setState(prev => ({ ...prev, targetReleaseId: '' }));
+  }, [state.targetProject]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialState) return false;
+    return JSON.stringify(state) !== JSON.stringify(initialState);
+  }, [state, initialState]);
+
+  const handleCloseRequest = () => {
+    if (hasUnsavedChanges) {
+      setIsCloseConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const modalRef = useClickOutside(handleCloseRequest);
+
+  const handleFileChange = (e) => {
+    setState(prev => ({...prev, selectedFile: e.target.files[0]}));
+    setError('');
+  };
+
+  const handleImport = () => {
+    if (!state.selectedFile) {
+      setError('Please select a file to import.');
+      return;
+    }
+    if (!state.targetProject) {
+      setError('Please select a target project.');
+      return;
+    }
+    
+    const sprintValue = state.isBacklog ? 'Backlog' : `Sprint ${state.targetSprint}`;
+    onImport(state.selectedFile, state.targetProject, sprintValue, state.targetReleaseId);
+  };
+
+  const handleSelectChange = (name, selectedOption) => {
+    setState(prev => ({...prev, [name]: selectedOption ? selectedOption.value : ''}));
+  };
+  
+  const handleCheckboxChange = (e) => {
+    setState(prev => ({...prev, isBacklog: e.target.checked}));
+  };
+
+  const projectOptions = projects.map(p => ({ value: p, label: p }));
   const sprintNumberOptions = Array.from({ length: 20 }, (_, i) => ({
     value: `${i + 1}`,
     label: `${i + 1}`
   }));
 
-  const projectOptions = projects.map(p => ({ value: p, label: p }));
-  const releaseOptions = releases.map(r => ({
-    value: r.id,
-    label: `${r.name} ${r.is_current ? '(Current)' : ''}`
-  }));
-
-  // Reset project-specific fields when project changes
-  useEffect(() => {
-    setTargetReleaseId('');
-  }, [targetProject]);
-
-  const handleFileChange = (e) => {
-    setSelectedFile(e.target.files[0]);
-    setError('');
-  };
-
-  const handleImport = () => {
-    if (!selectedFile) {
-      setError('Please select a file to import.');
-      return;
-    }
-    if (!targetProject) {
-      setError('Please select a target project.');
-      return;
-    }
-    
-    const sprintValue = isBacklog ? 'Backlog' : `Sprint ${targetSprint}`;
-    onImport(selectedFile, targetProject, sprintValue, targetReleaseId);
-  };
-
-  const handleSprintChange = (selectedOption) => {
-    setTargetSprint(selectedOption.value);
-  };
-
-  const handleProjectChange = (selectedOption) => {
-    setTargetProject(selectedOption ? selectedOption.value : '');
-  };
-
-  const handleReleaseChange = (selectedOption) => {
-    setTargetReleaseId(selectedOption ? selectedOption.value : '');
-  };
-
   const customSelectStyles = {
-    menuList: (base) => ({
-      ...base,
-      maxHeight: '180px',
-      overflowY: 'auto',
-    }),
-    menuPortal: (base) => ({ 
-      ...base, 
-      zIndex: 9999 
-    }),
+    menuList: (base) => ({ ...base, maxHeight: '180px', overflowY: 'auto' }),
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
   };
 
   const tooltipContent = (
@@ -86,78 +114,88 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
   if (!isOpen) return null;
 
   return (
-    <div className="add-new-modal-overlay">
-      <div className="add-new-modal-content">
-        <div className="modal-header-with-tooltip">
-          <h2>Import Requirements from Excel</h2>
-          <Tooltip content={tooltipContent} />
-        </div>
-        {error && <p className="error-message-modal">{error}</p>}
-        <div className="form-group">
-          <label htmlFor="importFile">Excel File (.xlsx, .xls):</label>
-          <input
-            type="file"
-            id="importFile"
-            accept=".xlsx, .xls"
-            onChange={handleFileChange}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="importProject">Target Project:</label>
-          <Select
-            id="importProject"
-            value={projectOptions.find(opt => opt.value === targetProject)}
-            onChange={handleProjectChange}
-            options={projectOptions}
-            styles={customSelectStyles}
-            menuPortalTarget={document.body}
-            placeholder="-- Select a Project --"
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="importSprint">Target Sprint:</label>
-           <Select
+    <>
+      <div className="add-new-modal-overlay">
+        <div ref={modalRef} className="add-new-modal-content">
+          <div className="modal-header-with-tooltip">
+            <div>
+              <h2>Import Requirements from Excel</h2>
+              <span className="how-to-export-link" onClick={() => setIsGifModalOpen(true)}>
+                How to Export from JIRA?
+              </span>
+            </div>
+            <Tooltip content={tooltipContent} />
+          </div>
+          {error && <p className="error-message-modal">{error}</p>}
+          <div className="form-group">
+            <label htmlFor="importFile">Excel File (.xlsx, .xls):</label>
+            <input type="file" id="importFile" accept=".xlsx, .xls" onChange={handleFileChange} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="importProject">Target Project:</label>
+            <Select
+              id="importProject"
+              value={projectOptions.find(opt => opt.value === state.targetProject)}
+              onChange={(opt) => handleSelectChange('targetProject', opt)}
+              options={projectOptions}
+              styles={customSelectStyles}
+              menuPortalTarget={document.body}
+              placeholder="-- Select a Project --"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="importSprint">Target Sprint:</label>
+            <Select
               id="importSprint"
-              value={sprintNumberOptions.find(opt => opt.value === targetSprint)}
-              onChange={handleSprintChange}
+              value={sprintNumberOptions.find(opt => opt.value === state.targetSprint)}
+              onChange={(opt) => handleSelectChange('targetSprint', opt)}
               options={sprintNumberOptions}
-              isDisabled={isBacklog}
+              isDisabled={state.isBacklog}
               styles={customSelectStyles}
               menuPortalTarget={document.body}
             />
-        </div>
-        <div className="form-group new-project-toggle">
-          <input
-            type="checkbox"
-            id="importIsBacklog"
-            checked={isBacklog}
-            onChange={(e) => setIsBacklog(e.target.checked)}
-          />
-          <label htmlFor="importIsBacklog" className="checkbox-label optional-label">
-            Assign to Backlog
-          </label>
-        </div>
-        <div className="form-group">
+          </div>
+          <div className="form-group new-project-toggle">
+            <input type="checkbox" id="importIsBacklog" checked={state.isBacklog} onChange={handleCheckboxChange} />
+            <label htmlFor="importIsBacklog" className="checkbox-label optional-label">Assign to Backlog</label>
+          </div>
+          <div className="form-group">
             <label htmlFor="importRelease" className="optional-label">Assign to Release (Optional):</label>
             <Select
               id="importRelease"
-              value={releaseOptions.find(opt => opt.value === targetReleaseId)}
-              onChange={handleReleaseChange}
+              value={releaseOptions.find(opt => opt.value === state.targetReleaseId)}
+              onChange={(opt) => handleSelectChange('targetReleaseId', opt)}
               options={releaseOptions}
-              isDisabled={!targetProject || releases.length === 0}
+              isDisabled={!state.targetProject || releaseOptions.length === 0}
               styles={customSelectStyles}
               menuPortalTarget={document.body}
-              placeholder={!targetProject ? "-- Select a project first --" : (releases.length === 0 ? "-- No releases for this project --" : "-- Select a Release --")}
-              isClearable
+              placeholder={!state.targetProject ? "-- Select a project first --" : (releaseOptions.length === 0 ? "-- No releases for this project --" : "-- Select a Release --")}
+              isClearable={false}
             />
-        </div>
-        <div className="modal-actions">
-          <button onClick={handleImport} className="modal-button-save">Import</button>
-          <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
+          </div>
+          <div className="modal-actions">
+            <button onClick={handleImport} className="modal-button-save">Import</button>
+            <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+          </div>
         </div>
       </div>
-    </div>
+      <ConfirmationModal
+        isOpen={isCloseConfirmOpen}
+        onClose={() => setIsCloseConfirmOpen(false)}
+        onConfirm={() => {
+          setIsCloseConfirmOpen(false);
+          onClose();
+        }}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Are you sure you want to close?"
+      />
+      <GifPlayerModal 
+        isOpen={isGifModalOpen}
+        onClose={() => setIsGifModalOpen(false)}
+        gifSrc="/exportJira.gif"
+      />
+    </>
   );
 };
 

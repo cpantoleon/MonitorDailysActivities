@@ -1,46 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DatePicker from 'react-datepicker';
 import Select from 'react-select';
 import "react-datepicker/dist/react-datepicker.css";
+import useClickOutside from '../hooks/useClickOutside';
+import ConfirmationModal from './ConfirmationModal';
 
 const RetrospectiveItemModal = ({ isOpen, onClose, onSubmit, item, columnTypes }) => {
-  const [formData, setFormData] = useState({
-    column_type: '',
+  const getInitialState = () => ({
+    column_type: (columnTypes.length > 0 ? columnTypes[0].value : ''),
     description: '',
     item_date: new Date(),
   });
 
+  const [formData, setFormData] = useState(getInitialState());
+  const [initialFormData, setInitialFormData] = useState(null);
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
+      let initialState;
       if (item && item.item_date) {
         const dateString = String(item.item_date);
         const parts = dateString.split('-');
         let parsedDate = new Date();
-
         if (parts.length === 3) {
-          const year = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10);
-          const day = parseInt(parts[2], 10);
-
+          const [year, month, day] = parts.map(p => parseInt(p, 10));
           if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
             parsedDate = new Date(year, month - 1, day);
           }
         }
-
-        setFormData({
+        initialState = {
           column_type: item.column_type || (columnTypes.length > 0 ? columnTypes[0].value : ''),
           description: item.description || '',
           item_date: parsedDate,
-        });
+        };
       } else {
-        setFormData({
-          column_type: (columnTypes.length > 0 ? columnTypes[0].value : ''),
-          description: '',
-          item_date: new Date(),
-        });
+        initialState = getInitialState();
       }
+      setFormData(initialState);
+      setInitialFormData(initialState);
     }
   }, [item, isOpen, columnTypes]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialFormData) return false;
+    return JSON.stringify(formData) !== JSON.stringify(initialFormData);
+  }, [formData, initialFormData]);
+
+  const handleCloseRequest = () => {
+    if (hasUnsavedChanges) {
+      setIsCloseConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const modalRef = useClickOutside(handleCloseRequest);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -63,86 +78,54 @@ const RetrospectiveItemModal = ({ isOpen, onClose, onSubmit, item, columnTypes }
       alert("Column, description, and date are required.");
       return;
     }
-
     const date = formData.item_date;
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const formattedDate = `${year}-${month}-${day}`;
-
-    onSubmit({
-      ...formData,
-      description: formData.description.trim(),
-      item_date: formattedDate,
-    });
+    const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+    onSubmit({ ...formData, description: formData.description.trim(), item_date: formattedDate });
   };
 
   if (!isOpen) return null;
 
   const customSelectStyles = {
-    menuList: (base) => ({
-      ...base,
-      maxHeight: '180px',
-      overflowY: 'auto',
-    }),
-    menuPortal: (base) => ({ 
-      ...base, 
-      zIndex: 9999 
-    }),
+    menuList: (base) => ({ ...base, maxHeight: '180px', overflowY: 'auto' }),
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
   };
 
   return (
-    <div className="add-new-modal-overlay">
-      <div className="add-new-modal-content" style={{maxWidth: '600px'}}>
-        <h2>{item ? 'Edit Retrospective Item' : 'Add Retrospective Item'}</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="retro-column-type">Column:</label>
-            <Select
-              id="retro-column-type"
-              name="column_type"
-              value={columnTypes.find(opt => opt.value === formData.column_type)}
-              onChange={(option) => handleSelectChange('column_type', option)}
-              options={columnTypes}
-              styles={customSelectStyles}
-              menuPortalTarget={document.body}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="retro-description">Description:</label>
-            <textarea
-              id="retro-description"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows="4"
-              placeholder="What happened? What did you observe?"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="retro-item-date">Date:</label>
-            <DatePicker
-              selected={formData.item_date}
-              onChange={handleDateChange}
-              dateFormat="MM/dd/yyyy"
-              className="notes-datepicker"
-              wrapperClassName="date-picker-wrapper"
-              placeholderText="Select a date"
-            />
-          </div>
-          <div className="modal-actions">
-            <button type="submit" className="modal-button-save">
-              {item ? 'Save Changes' : 'Add Item'}
-            </button>
-            <button type="button" onClick={onClose} className="modal-button-cancel">
-              Cancel
-            </button>
-          </div>
-        </form>
+    <>
+      <div className="add-new-modal-overlay">
+        <div ref={modalRef} className="add-new-modal-content" style={{maxWidth: '600px'}}>
+          <h2>{item ? 'Edit Retrospective Item' : 'Add Retrospective Item'}</h2>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="retro-column-type">Column:</label>
+              <Select id="retro-column-type" name="column_type" value={columnTypes.find(opt => opt.value === formData.column_type)} onChange={(option) => handleSelectChange('column_type', option)} options={columnTypes} styles={customSelectStyles} menuPortalTarget={document.body} required />
+            </div>
+            <div className="form-group">
+              <label htmlFor="retro-description">Description:</label>
+              <textarea id="retro-description" name="description" value={formData.description} onChange={handleChange} rows="4" placeholder="What happened? What did you observe?" required />
+            </div>
+            <div className="form-group">
+              <label htmlFor="retro-item-date">Date:</label>
+              <DatePicker selected={formData.item_date} onChange={handleDateChange} dateFormat="MM/dd/yyyy" className="notes-datepicker" wrapperClassName="date-picker-wrapper" placeholderText="Select a date" />
+            </div>
+            <div className="modal-actions">
+              <button type="submit" className="modal-button-save">{item ? 'Save Changes' : 'Add Item'}</button>
+              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+      <ConfirmationModal
+        isOpen={isCloseConfirmOpen}
+        onClose={() => setIsCloseConfirmOpen(false)}
+        onConfirm={() => {
+          setIsCloseConfirmOpen(false);
+          onClose();
+        }}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Are you sure you want to close?"
+      />
+    </>
   );
 };
 

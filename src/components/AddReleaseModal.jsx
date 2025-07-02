@@ -1,26 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Select from 'react-select';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import useClickOutside from '../hooks/useClickOutside';
+import ConfirmationModal from './ConfirmationModal';
 
 const AddReleaseModal = ({ isOpen, onClose, onAdd, projects, currentProject }) => {
-  const [formData, setFormData] = useState({
-    project: '',
+  const getInitialState = () => ({
+    project: currentProject || (projects.length > 0 ? projects[0] : ''),
     name: '',
     release_date: new Date(),
     is_current: false,
   });
 
+  const [formData, setFormData] = useState(getInitialState());
+  const [initialFormData, setInitialFormData] = useState(null);
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
-      setFormData({
-        project: currentProject || (projects.length > 0 ? projects[0] : ''),
-        name: '',
-        release_date: new Date(),
-        is_current: false,
-      });
+      const initialState = getInitialState();
+      setFormData(initialState);
+      setInitialFormData(initialState);
     }
   }, [isOpen, currentProject, projects]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialFormData) return false;
+    return formData.name.trim() !== '' || formData.is_current !== false;
+  }, [formData, initialFormData]);
+
+  const handleCloseRequest = () => {
+    if (hasUnsavedChanges) {
+      setIsCloseConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
+  
+  const modalRef = useClickOutside(handleCloseRequest);
 
   const handleSelectChange = (selectedOption) => {
     setFormData(prev => ({ ...prev, project: selectedOption ? selectedOption.value : '' }));
@@ -55,41 +73,53 @@ const AddReleaseModal = ({ isOpen, onClose, onAdd, projects, currentProject }) =
   };
 
   return (
-    <div className="add-new-modal-overlay">
-      <div className="add-new-modal-content" style={{ maxWidth: '500px' }}>
-        <h2>Add New Release</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="release-project">Project:</label>
-            <Select
-              id="release-project"
-              value={projectOptions.find(opt => opt.value === formData.project)}
-              onChange={handleSelectChange}
-              options={projectOptions}
-              styles={customSelectStyles}
-              menuPortalTarget={document.body}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="release-name">Release Name:</label>
-            <input type="text" id="release-name" name="name" value={formData.name} onChange={handleChange} required />
-          </div>
-          <div className="form-group">
-            <label htmlFor="release-date">Release Date:</label>
-            <DatePicker selected={formData.release_date} onChange={handleDateChange} dateFormat="MM/dd/yyyy" className="notes-datepicker" wrapperClassName="date-picker-wrapper" />
-          </div>
-          <div className="form-group new-project-toggle">
-            <input type="checkbox" id="release-is-current" name="is_current" checked={formData.is_current} onChange={handleChange} />
-            <label htmlFor="release-is-current" className="checkbox-label optional-label">Set as Current Release for this Project</label>
-          </div>
-          <div className="modal-actions">
-            <button type="submit" className="modal-button-save">Add Release</button>
-            <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
-          </div>
-        </form>
+    <>
+      <div className="add-new-modal-overlay">
+        <div ref={modalRef} className="add-new-modal-content" style={{ maxWidth: '500px' }}>
+          <h2>Add New Release</h2>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="release-project">Project:</label>
+              <Select
+                id="release-project"
+                value={projectOptions.find(opt => opt.value === formData.project)}
+                onChange={handleSelectChange}
+                options={projectOptions}
+                styles={customSelectStyles}
+                menuPortalTarget={document.body}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="release-name">Release Name:</label>
+              <input type="text" id="release-name" name="name" value={formData.name} onChange={handleChange} required />
+            </div>
+            <div className="form-group">
+              <label htmlFor="release-date">Release Date:</label>
+              <DatePicker selected={formData.release_date} onChange={handleDateChange} dateFormat="MM/dd/yyyy" className="notes-datepicker" wrapperClassName="date-picker-wrapper" />
+            </div>
+            <div className="form-group new-project-toggle">
+              <input type="checkbox" id="release-is-current" name="is_current" checked={formData.is_current} onChange={handleChange} />
+              <label htmlFor="release-is-current" className="checkbox-label optional-label">Set as Current Release for this Project</label>
+            </div>
+            <div className="modal-actions">
+              <button type="submit" className="modal-button-save">Add Release</button>
+              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+      <ConfirmationModal
+        isOpen={isCloseConfirmOpen}
+        onClose={() => setIsCloseConfirmOpen(false)}
+        onConfirm={() => {
+          setIsCloseConfirmOpen(false);
+          onClose();
+        }}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Are you sure you want to close?"
+      />
+    </>
   );
 };
 

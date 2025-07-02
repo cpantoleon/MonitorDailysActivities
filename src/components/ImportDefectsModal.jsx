@@ -1,11 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Select from 'react-select';
-import Tooltip from './Tooltip'; // Import the new reusable component
+import Tooltip from './Tooltip';
+import useClickOutside from '../hooks/useClickOutside';
+import ConfirmationModal from './ConfirmationModal';
+import GifPlayerModal from './GifPlayerModal'; // Import the new component
 
 const ImportDefectsModal = ({ isOpen, onClose, onImport, projects }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [targetProject, setTargetProject] = useState('');
   const [error, setError] = useState('');
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+  const [isGifModalOpen, setIsGifModalOpen] = useState(false); // State for the GIF modal
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedFile(null);
+      setTargetProject('');
+      setError('');
+    }
+  }, [isOpen]);
+
+  const hasUnsavedChanges = useMemo(() => !!selectedFile || !!targetProject, [selectedFile, targetProject]);
+
+  const handleCloseRequest = () => {
+    if (hasUnsavedChanges) {
+      setIsCloseConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const modalRef = useClickOutside(handleCloseRequest);
 
   const projectOptions = projects.map(p => ({ value: p, label: p }));
 
@@ -31,15 +56,8 @@ const ImportDefectsModal = ({ isOpen, onClose, onImport, projects }) => {
   };
 
   const customSelectStyles = {
-    menuList: (base) => ({
-      ...base,
-      maxHeight: '180px',
-      overflowY: 'auto',
-    }),
-    menuPortal: (base) => ({ 
-      ...base, 
-      zIndex: 9999 
-    }),
+    menuList: (base) => ({ ...base, maxHeight: '180px', overflowY: 'auto' }),
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
   };
 
   const tooltipContent = (
@@ -58,41 +76,58 @@ const ImportDefectsModal = ({ isOpen, onClose, onImport, projects }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="add-new-modal-overlay">
-      <div className="add-new-modal-content">
-        <div className="modal-header-with-tooltip">
-          <h2>Import Defects from Excel</h2>
-          <Tooltip content={tooltipContent} />
-        </div>
-        {error && <p className="error-message-modal">{error}</p>}
-        <div className="form-group">
-          <label htmlFor="importFile">Excel File (.xlsx, .xls):</label>
-          <input
-            type="file"
-            id="importFile"
-            accept=".xlsx, .xls"
-            onChange={handleFileChange}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="importProject">Target Project:</label>
-          <Select
-            id="importProject"
-            value={projectOptions.find(opt => opt.value === targetProject)}
-            onChange={handleProjectChange}
-            options={projectOptions}
-            styles={customSelectStyles}
-            menuPortalTarget={document.body}
-            placeholder="-- Select a Project --"
-            required
-          />
-        </div>
-        <div className="modal-actions">
-          <button onClick={handleImport} className="modal-button-save">Import</button>
-          <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
+    <>
+      <div className="add-new-modal-overlay">
+        <div ref={modalRef} className="add-new-modal-content">
+          <div className="modal-header-with-tooltip">
+            <div>
+              <h2>Import Defects from Excel</h2>
+              <span className="how-to-export-link" onClick={() => setIsGifModalOpen(true)}>
+                How to Export from JIRA?
+              </span>
+            </div>
+            <Tooltip content={tooltipContent} />
+          </div>
+          {error && <p className="error-message-modal">{error}</p>}
+          <div className="form-group">
+            <label htmlFor="importFile">Excel File (.xlsx, .xls):</label>
+            <input type="file" id="importFile" accept=".xlsx, .xls" onChange={handleFileChange} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="importProject">Target Project:</label>
+            <Select
+              id="importProject"
+              value={projectOptions.find(opt => opt.value === targetProject)}
+              onChange={handleProjectChange}
+              options={projectOptions}
+              styles={customSelectStyles}
+              menuPortalTarget={document.body}
+              placeholder="-- Select a Project --"
+              required
+            />
+          </div>
+          <div className="modal-actions">
+            <button onClick={handleImport} className="modal-button-save">Import</button>
+            <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+          </div>
         </div>
       </div>
-    </div>
+      <ConfirmationModal
+        isOpen={isCloseConfirmOpen}
+        onClose={() => setIsCloseConfirmOpen(false)}
+        onConfirm={() => {
+          setIsCloseConfirmOpen(false);
+          onClose();
+        }}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Are you sure you want to close?"
+      />
+      <GifPlayerModal 
+        isOpen={isGifModalOpen}
+        onClose={() => setIsGifModalOpen(false)}
+        gifSrc="/exportJira.gif"
+      />
+    </>
   );
 };
 

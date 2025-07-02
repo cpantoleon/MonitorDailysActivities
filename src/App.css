@@ -1320,6 +1320,25 @@ body {
   margin-top: 20px;
 }
 
+.how-to-export-link {
+  font-size: 0.85em;
+  color: #007bff;
+  cursor: pointer;
+  text-decoration: none;
+  margin-top: 5px;
+  display: block;
+}
+
+.how-to-export-link:hover {
+  text-decoration: underline;
+}
+
+.modal-header-with-tooltip > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 @media screen and (max-width: 1400px) {
   .selection-controls,
   .defects-controls,

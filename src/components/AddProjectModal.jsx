@@ -1,15 +1,26 @@
-// src/components/AddProjectModal.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import useClickOutside from '../hooks/useClickOutside';
+import ConfirmationModal from './ConfirmationModal';
 
 const AddProjectModal = ({ isOpen, onClose, onAddProject }) => {
   const [projectName, setProjectName] = useState('');
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
 
-  // Reset input when modal is opened/closed
   useEffect(() => {
     if (!isOpen) {
       setProjectName('');
     }
   }, [isOpen]);
+
+  const hasUnsavedChanges = useMemo(() => projectName.trim() !== '', [projectName]);
+
+  const handleCloseRequest = () => {
+    if (hasUnsavedChanges) {
+      setIsCloseConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -18,33 +29,46 @@ const AddProjectModal = ({ isOpen, onClose, onAddProject }) => {
     }
   };
 
+  const modalRef = useClickOutside(handleCloseRequest);
+
   if (!isOpen) return null;
 
   return (
-    // Re-use existing modal styles for consistency
-    <div className="add-new-modal-overlay">
-      <div className="add-new-modal-content" style={{ maxWidth: '450px' }}>
-        <h2>Add New Project</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="newProjectName">Project Name:</label>
-            <input
-              type="text"
-              id="newProjectName"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="Enter the name of the new project"
-              required
-              autoFocus
-            />
-          </div>
-          <div className="modal-actions">
-            <button type="submit" className="modal-button-save">Add Project</button>
-            <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
-          </div>
-        </form>
+    <>
+      <div className="add-new-modal-overlay">
+        <div ref={modalRef} className="add-new-modal-content" style={{ maxWidth: '450px' }}>
+          <h2>Add New Project</h2>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="newProjectName">Project Name:</label>
+              <input
+                type="text"
+                id="newProjectName"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="Enter the name of the new project"
+                required
+                autoFocus
+              />
+            </div>
+            <div className="modal-actions">
+              <button type="submit" className="modal-button-save">Add Project</button>
+              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+      <ConfirmationModal
+        isOpen={isCloseConfirmOpen}
+        onClose={() => setIsCloseConfirmOpen(false)}
+        onConfirm={() => {
+          setIsCloseConfirmOpen(false);
+          onClose();
+        }}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Are you sure you want to close?"
+      />
+    </>
   );
 };
 
