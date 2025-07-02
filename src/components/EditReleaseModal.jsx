@@ -132,7 +132,7 @@ const EditReleaseModal = ({ isOpen, onClose, onSave, onDelete, releases, project
           <label htmlFor="release-select">Select Release to Edit:</label>
           <Select
             id="release-select"
-            value={releaseOptions.find(opt => opt.value === selectedReleaseId)}
+            value={releaseOptions.find(opt => opt.value === selectedReleaseId) || null}
             onChange={handleReleaseSelect}
             options={releaseOptions}
             styles={customSelectStyles}

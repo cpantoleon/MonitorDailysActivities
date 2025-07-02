@@ -12,13 +12,13 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
     if (isOpen) {
       setInitialFormData(formData);
     }
-  }, [isOpen, formData]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (initialFormData && formData.project !== initialFormData.project) {
         onFormChange({ target: { name: 'release_id', value: '' } });
     }
-  }, [formData.project]);
+  }, [formData.project, initialFormData, onFormChange]);
 
 
   const hasUnsavedChanges = useMemo(() => {
@@ -122,14 +122,14 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
               <Select
                 id="newReqRelease"
                 name="release_id"
-                value={releaseOptions.find(opt => opt.value === formData.release_id)}
+                value={releaseOptions.find(opt => opt.value === formData.release_id) || null}
                 onChange={(option) => handleSelectChange('release_id', option)}
                 options={releaseOptions}
                 isDisabled={!formData.project || releaseOptions.length === 0}
                 styles={customSelectStyles}
                 menuPortalTarget={document.body}
                 placeholder={!formData.project ? "-- Select a project first --" : (releaseOptions.length === 0 ? "-- No releases for this project --" : "-- Select a Release --")}
-                isClearable={false}
+                isClearable
               />
             </div>
             <div className="form-group">

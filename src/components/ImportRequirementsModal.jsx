@@ -41,10 +41,6 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
       }));
   }, [state.targetProject, releases]);
 
-  useEffect(() => {
-    setState(prev => ({ ...prev, targetReleaseId: '' }));
-  }, [state.targetProject]);
-
   const hasUnsavedChanges = useMemo(() => {
     if (!initialState) return false;
     return JSON.stringify(state) !== JSON.stringify(initialState);
@@ -77,6 +73,15 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
     
     const sprintValue = state.isBacklog ? 'Backlog' : `Sprint ${state.targetSprint}`;
     onImport(state.selectedFile, state.targetProject, sprintValue, state.targetReleaseId);
+  };
+
+  const handleProjectChange = (selectedOption) => {
+    const newProject = selectedOption ? selectedOption.value : '';
+    setState(prev => ({
+        ...prev,
+        targetProject: newProject,
+        targetReleaseId: ''
+    }));
   };
 
   const handleSelectChange = (name, selectedOption) => {
@@ -137,7 +142,7 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
             <Select
               id="importProject"
               value={projectOptions.find(opt => opt.value === state.targetProject)}
-              onChange={(opt) => handleSelectChange('targetProject', opt)}
+              onChange={handleProjectChange}
               options={projectOptions}
               styles={customSelectStyles}
               menuPortalTarget={document.body}
@@ -165,14 +170,14 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
             <label htmlFor="importRelease" className="optional-label">Assign to Release (Optional):</label>
             <Select
               id="importRelease"
-              value={releaseOptions.find(opt => opt.value === state.targetReleaseId)}
+              value={releaseOptions.find(opt => opt.value === state.targetReleaseId) || null}
               onChange={(opt) => handleSelectChange('targetReleaseId', opt)}
               options={releaseOptions}
               isDisabled={!state.targetProject || releaseOptions.length === 0}
               styles={customSelectStyles}
               menuPortalTarget={document.body}
               placeholder={!state.targetProject ? "-- Select a project first --" : (releaseOptions.length === 0 ? "-- No releases for this project --" : "-- Select a Release --")}
-              isClearable={false}
+              isClearable
             />
           </div>
           <div className="modal-actions">
