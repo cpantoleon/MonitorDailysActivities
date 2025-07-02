@@ -486,7 +486,7 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
             />
         </div>
         <div className="page-actions-group">
-            <button onClick={handleToggleCharts} className="defect-action-button" disabled={!selectedProject}>
+            <button onClick={handleToggleCharts} className="defect-action-button" disabled={!selectedProject || defectsForNormalView.length === 0}>
                 {showAreaChart ? 'Hide' : 'Show'} Charts
             </button>
             <button onClick={() => setShowClosedView(p => !p)} className="defect-action-button" disabled={isLoading || allDefects.filter(d => d.status === 'Closed').length === 0} style={{backgroundColor: '#E0D3B6', borderColor: '#C8BBA2'}}>
