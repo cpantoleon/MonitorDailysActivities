@@ -51,7 +51,7 @@ const UpdateStatusModal = ({ isOpen, onClose, onSave, requirement, newStatus }) 
           </div>
           <div className="modal-actions">
             <button onClick={handleSave} className="modal-button-save">Confirm Update</button>
-            <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+            <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
           </div>
         </div>
       </div>

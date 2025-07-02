@@ -141,7 +141,8 @@ const EditReleaseModal = ({ isOpen, onClose, onSave, onDelete, releases, project
             isDisabled={!selectedModalProject || releaseOptions.length === 0}
           />
         </div>
-        {formData && (
+        
+        {formData ? (
           <form onSubmit={handleSave}>
             <div className="form-group">
               <label htmlFor="edit-release-name">Release Name:</label>
@@ -158,9 +159,13 @@ const EditReleaseModal = ({ isOpen, onClose, onSave, onDelete, releases, project
             <div className="modal-actions">
               <button type="submit" className="modal-button-save">Save Changes</button>
               <button type="button" onClick={handleDelete} className="modal-button-delete">Delete</button>
-              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+              <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
             </div>
           </form>
+        ) : (
+          <div className="modal-actions">
+            <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
+          </div>
         )}
       </div>
       <ConfirmationModal

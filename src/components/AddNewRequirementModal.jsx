@@ -14,7 +14,6 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
     }
   }, [isOpen, formData]);
 
-  // This effect resets the release selection when the project changes.
   useEffect(() => {
     if (initialFormData && formData.project !== initialFormData.project) {
         onFormChange({ target: { name: 'release_id', value: '' } });
@@ -147,7 +146,7 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
             </div>
             <div className="modal-actions">
               <button type="submit" className="modal-button-save">Add Requirement</button>
-              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+              <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
             </div>
           </form>
         </div>

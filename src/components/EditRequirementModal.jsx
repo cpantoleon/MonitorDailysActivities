@@ -140,7 +140,7 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases }
             </div>
             <div className="modal-actions">
               <button type="submit" className="modal-button-save">Save Changes</button>
-              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+              <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
             </div>
           </form>
         </div>

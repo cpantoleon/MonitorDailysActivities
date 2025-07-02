@@ -516,7 +516,7 @@ const DefectsPage = ({ projects, allRequirements, showMessage, onDefectUpdate })
       {defectForHistory && <DefectHistoryModal isOpen={isHistoryModalOpen} onClose={() => { setIsHistoryModalOpen(false); setDefectForHistory(null); setDefectHistory([]);}} defect={defectForHistory} history={defectHistory} />}
       <ConfirmationModal isOpen={isDeleteConfirmModalOpen} onClose={() => setIsDeleteConfirmModalOpen(false)} onConfirm={handleConfirmDelete} title="Confirm Defect Deletion" message={`Are you sure you want to permanently delete the defect "${defectToDelete?.title}"? This action cannot be undone.`} />
       
-      <ImportDefectsModal isOpen={isImportDefectsModalOpen} onClose={handleCloseImportModal} onImport={handleValidateDefectImport} projects={projects || []} />
+      <ImportDefectsModal isOpen={isImportDefectsModalOpen} onClose={handleCloseImportModal} onImport={handleValidateDefectImport} projects={projects || []} currentProject={selectedProject} />
       <ConfirmationModal isOpen={isImportConfirmModalOpen} onClose={() => setIsImportConfirmModalOpen(false)} onConfirm={handleConfirmImport} title="Confirm Defect Import" message={`The file contains ${importConfirmData?.newCount || 0} new defect(s) and ${importConfirmData?.duplicateCount || 0} duplicate(s). Do you want to proceed?`} />
     </div>
   );

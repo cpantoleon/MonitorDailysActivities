@@ -509,13 +509,12 @@ function App() {
   }, [fetchData, showMainMessage]);
 
   const handleOpenAddModal = useCallback(() => {
-    let initialProjectForModal = selectedProject || (projects.length > 0 ? projects[0] : '');
     setNewReqFormState({
-        project: initialProjectForModal,
+        project: selectedProject,
         requirementName: '', status: 'To Do', sprint: '1', comment: '', link: '', isBacklog: false, type: '', tags: '', release_id: ''
     });
     setIsAddModalOpen(true);
-  }, [selectedProject, projects]);
+  }, [selectedProject]);
 
   const handleCloseAddModal = useCallback(() => setIsAddModalOpen(false), []);
   const handleNewReqFormChange = useCallback((e) => {
@@ -981,7 +980,7 @@ function App() {
       <HistoryModal requirement={requirementForHistory} isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} onSaveHistoryEntry={handleSaveHistoryEntry} />
       <AddNewRequirementModal isOpen={isAddModalOpen} onClose={handleCloseAddModal} formData={newReqFormState} onFormChange={handleNewReqFormChange} onSubmit={handleAddNewRequirement} projects={projects} releases={allReleases} />
       <AddProjectModal isOpen={isAddProjectModalOpen} onClose={handleCloseAddProjectModal} onAddProject={handleAddNewProject} />
-      <ImportRequirementsModal isOpen={isImportModalOpen} onClose={handleCloseImportModal} onImport={handleValidateImport} projects={projects} releases={allReleases} />
+      <ImportRequirementsModal isOpen={isImportModalOpen} onClose={handleCloseImportModal} onImport={handleValidateImport} projects={projects} releases={allReleases} currentProject={selectedProject} />
       <AddReleaseModal isOpen={isAddReleaseModalOpen} onClose={() => setIsAddReleaseModalOpen(false)} onAdd={handleAddRelease} projects={projects} currentProject={selectedProject} />
       <EditReleaseModal isOpen={isEditReleaseModalOpen} onClose={() => setIsEditReleaseModalOpen(false)} onSave={handleEditRelease} onDelete={(release) => handleDeleteRequest('release', release)} releases={allReleases} projects={projects} currentProject={selectedProject} />
       <ConfirmationModal isOpen={isImportConfirmModalOpen} onClose={() => setIsImportConfirmModalOpen(false)} onConfirm={handleConfirmImport} title="Confirm Import" message={`The file contains ${importConfirmData?.newCount || 0} new item(s) and ${importConfirmData?.duplicateCount || 0} item(s) that already exist (based on 'Key'). Existing items will be imported with a modified name (e.g., 'Item Name (1)'). Do you want to proceed?`} />

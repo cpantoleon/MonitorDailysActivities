@@ -3,12 +3,12 @@ import Select from 'react-select';
 import Tooltip from './Tooltip';
 import useClickOutside from '../hooks/useClickOutside';
 import ConfirmationModal from './ConfirmationModal';
-import GifPlayerModal from './GifPlayerModal'; // Import the new component
+import GifPlayerModal from './GifPlayerModal';
 
-const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases }) => {
-  const getInitialState = () => ({
+const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases, currentProject }) => {
+  const getInitialState = (project = '') => ({
     selectedFile: null,
-    targetProject: '',
+    targetProject: project,
     targetSprint: '1',
     targetReleaseId: '',
     isBacklog: false,
@@ -18,17 +18,18 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
   const [initialState, setInitialState] = useState(null);
   const [error, setError] = useState('');
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
-  const [isGifModalOpen, setIsGifModalOpen] = useState(false); // State for the GIF modal
+  const [isGifModalOpen, setIsGifModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      const initial = getInitialState();
+      const initial = getInitialState(currentProject);
       setState(initial);
       setInitialState(initial);
     } else {
+      setState(getInitialState());
       setError('');
     }
-  }, [isOpen]);
+  }, [isOpen, currentProject]);
 
   const releaseOptions = useMemo(() => {
     if (!state.targetProject) return [];
@@ -176,7 +177,7 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
           </div>
           <div className="modal-actions">
             <button onClick={handleImport} className="modal-button-save">Import</button>
-            <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+            <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
           </div>
         </div>
       </div>

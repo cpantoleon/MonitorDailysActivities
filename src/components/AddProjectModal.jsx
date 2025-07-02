@@ -53,7 +53,7 @@ const AddProjectModal = ({ isOpen, onClose, onAddProject }) => {
             </div>
             <div className="modal-actions">
               <button type="submit" className="modal-button-save">Add Project</button>
-              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+              <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
             </div>
           </form>
         </div>

@@ -3,24 +3,38 @@ import Select from 'react-select';
 import Tooltip from './Tooltip';
 import useClickOutside from '../hooks/useClickOutside';
 import ConfirmationModal from './ConfirmationModal';
-import GifPlayerModal from './GifPlayerModal'; // Import the new component
+import GifPlayerModal from './GifPlayerModal';
 
-const ImportDefectsModal = ({ isOpen, onClose, onImport, projects }) => {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [targetProject, setTargetProject] = useState('');
+const ImportDefectsModal = ({ isOpen, onClose, onImport, projects, currentProject }) => {
+  const getInitialState = (project = '') => ({
+    selectedFile: null,
+    targetProject: project,
+  });
+
+  const [formState, setFormState] = useState(getInitialState());
+  const [initialState, setInitialState] = useState(null);
   const [error, setError] = useState('');
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
-  const [isGifModalOpen, setIsGifModalOpen] = useState(false); // State for the GIF modal
+  const [isGifModalOpen, setIsGifModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) {
-      setSelectedFile(null);
-      setTargetProject('');
+    if (isOpen) {
+      const initial = getInitialState(currentProject);
+      setFormState(initial);
+      setInitialState(initial);
+    } else {
+      setFormState(getInitialState());
+      setInitialState(null);
       setError('');
     }
-  }, [isOpen]);
+  }, [isOpen, currentProject]);
 
-  const hasUnsavedChanges = useMemo(() => !!selectedFile || !!targetProject, [selectedFile, targetProject]);
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialState) return false;
+    const fileChanged = formState.selectedFile?.name !== initialState.selectedFile?.name;
+    const projectChanged = formState.targetProject !== initialState.targetProject;
+    return fileChanged || projectChanged;
+  }, [formState, initialState]);
 
   const handleCloseRequest = () => {
     if (hasUnsavedChanges) {
@@ -35,24 +49,24 @@ const ImportDefectsModal = ({ isOpen, onClose, onImport, projects }) => {
   const projectOptions = projects.map(p => ({ value: p, label: p }));
 
   const handleFileChange = (e) => {
-    setSelectedFile(e.target.files[0]);
+    setFormState(prev => ({...prev, selectedFile: e.target.files[0]}));
     setError('');
   };
 
   const handleImport = () => {
-    if (!selectedFile) {
+    if (!formState.selectedFile) {
       setError('Please select a file to import.');
       return;
     }
-    if (!targetProject) {
+    if (!formState.targetProject) {
       setError('Please select a target project.');
       return;
     }
-    onImport(selectedFile, targetProject);
+    onImport(formState.selectedFile, formState.targetProject);
   };
 
   const handleProjectChange = (selectedOption) => {
-    setTargetProject(selectedOption ? selectedOption.value : '');
+    setFormState(prev => ({...prev, targetProject: selectedOption ? selectedOption.value : ''}));
   };
 
   const customSelectStyles = {
@@ -97,7 +111,7 @@ const ImportDefectsModal = ({ isOpen, onClose, onImport, projects }) => {
             <label htmlFor="importProject">Target Project:</label>
             <Select
               id="importProject"
-              value={projectOptions.find(opt => opt.value === targetProject)}
+              value={projectOptions.find(opt => opt.value === formState.targetProject)}
               onChange={handleProjectChange}
               options={projectOptions}
               styles={customSelectStyles}
@@ -108,7 +122,7 @@ const ImportDefectsModal = ({ isOpen, onClose, onImport, projects }) => {
           </div>
           <div className="modal-actions">
             <button onClick={handleImport} className="modal-button-save">Import</button>
-            <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+            <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
           </div>
         </div>
       </div>

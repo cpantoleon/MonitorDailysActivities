@@ -85,7 +85,7 @@ const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry }) => {
       <div className="history-modal-overlay">
         <div ref={modalRef} className="history-modal-content">
           <h2>History for: {requirement.requirementUserIdentifier}</h2>
-          <button onClick={handleCloseRequest} className="history-modal-close-button">Close</button>
+          <button onClick={onClose} className="history-modal-close-button">Close</button>
           <table className="history-modal-table">
             <thead>
               <tr><th>Status</th><th>Date</th><th>Sprint</th><th>Comment</th><th>Actions</th></tr>

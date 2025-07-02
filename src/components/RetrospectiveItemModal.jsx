@@ -110,7 +110,7 @@ const RetrospectiveItemModal = ({ isOpen, onClose, onSubmit, item, columnTypes }
             </div>
             <div className="modal-actions">
               <button type="submit" className="modal-button-save">{item ? 'Save Changes' : 'Add Item'}</button>
-              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+              <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
             </div>
           </form>
         </div>

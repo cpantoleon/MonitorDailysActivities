@@ -6,24 +6,27 @@ import useClickOutside from '../hooks/useClickOutside';
 import ConfirmationModal from './ConfirmationModal';
 
 const AddReleaseModal = ({ isOpen, onClose, onAdd, projects, currentProject }) => {
-  const getInitialState = () => ({
-    project: currentProject || (projects.length > 0 ? projects[0] : ''),
+  const getInitialState = (project) => ({
+    project: project || '',
     name: '',
     release_date: new Date(),
     is_current: false,
   });
 
-  const [formData, setFormData] = useState(getInitialState());
+  const [formData, setFormData] = useState(getInitialState(currentProject));
   const [initialFormData, setInitialFormData] = useState(null);
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      const initialState = getInitialState();
+      const initialState = getInitialState(currentProject);
       setFormData(initialState);
       setInitialFormData(initialState);
+    } else {
+      setFormData(getInitialState(''));
+      setInitialFormData(null);
     }
-  }, [isOpen, currentProject, projects]);
+  }, [isOpen, currentProject]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!initialFormData) return false;
@@ -104,7 +107,7 @@ const AddReleaseModal = ({ isOpen, onClose, onAdd, projects, currentProject }) =
             </div>
             <div className="modal-actions">
               <button type="submit" className="modal-button-save">Add Release</button>
-              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+              <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
             </div>
           </form>
         </div>

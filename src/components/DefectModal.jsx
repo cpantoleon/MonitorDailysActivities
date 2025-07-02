@@ -11,7 +11,7 @@ const DEFECT_STATUSES = ['Assigned to Developer', 'Assigned to Tester', 'Done'];
 const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelectedProject, allRequirements = [] }) => {
   
   const getInitialFormState = (project) => ({
-    project: project,
+    project: project || '',
     title: '',
     description: '',
     area: '',
@@ -54,17 +54,21 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
           linkedRequirementGroupIds: defect.linkedRequirements ? defect.linkedRequirements.map(r => r.groupId) : [],
         };
       } else {
-        const initialProject = currentSelectedProject || (projects.length > 0 ? projects[0] : '');
+        const initialProject = currentSelectedProject || '';
         initialData = getInitialFormState(initialProject);
       }
       setFormData(initialData);
       setInitialFormData(initialData);
+    } else {
+      setFormData(getInitialFormState(''));
+      setInitialFormData(null);
+      setIsCustomArea(false);
+      setModalAreas([]);
     }
-  }, [defect, isOpen, currentSelectedProject, projects]);
+  }, [defect, isOpen, currentSelectedProject]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!initialFormData) return false;
-    // Sort arrays for consistent comparison
     const sortedCurrentLinks = [...formData.linkedRequirementGroupIds].sort();
     const sortedInitialLinks = [...initialFormData.linkedRequirementGroupIds].sort();
     const linksChanged = JSON.stringify(sortedCurrentLinks) !== JSON.stringify(sortedInitialLinks);
@@ -125,6 +129,11 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
       const selected = requirementsForSelectedProject.filter(r => linkedIdsSet.has(r.id));
       setAvailableRequirements(available);
       setSelectedRequirements(selected);
+    } else {
+        setAvailableRequirements([]);
+        setSelectedRequirements([]);
+        setToAdd([]);
+        setToRemove([]);
     }
   }, [isOpen, requirementsForSelectedProject, formData.linkedRequirementGroupIds]);
 
@@ -273,7 +282,7 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
             </div>
             <div className="modal-actions">
               <button type="submit" className="modal-button-save">{defect ? 'Save Changes' : 'Create Defect'}</button>
-              <button type="button" onClick={handleCloseRequest} className="modal-button-cancel">Cancel</button>
+              <button type="button" onClick={onClose} className="modal-button-cancel">Cancel</button>
             </div>
           </form>
         </div>
