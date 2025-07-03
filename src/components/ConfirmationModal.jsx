@@ -1,14 +1,21 @@
 import React from 'react';
-import useClickOutside from '../hooks/useClickOutside';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
   if (!isOpen) return null;
 
-  const modalRef = useClickOutside(onClose);
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
 
   return (
-    <div className="confirmation-modal-overlay">
-      <div ref={modalRef} className="confirmation-modal-content">
+    <div
+      className="confirmation-modal-overlay"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={handleOverlayClick}
+    >
+      <div className="confirmation-modal-content">
         <h3>{title || 'Confirm Action'}</h3>
         <p>{message || 'Are you sure?'}</p>
         <div className="modal-actions">

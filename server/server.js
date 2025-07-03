@@ -411,7 +411,7 @@ app.delete("/api/requirements/:requirementGroupId", (req, res) => {
     });
 });
 
-app.post('/api/import/validate', async (req, res) => {
+app.post('/api/import/validate', upload.single('file'), async (req, res) => {
     const { project } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
     if (!project) return res.status(400).json({ error: 'Project is required.' });
@@ -443,7 +443,7 @@ app.post('/api/import/validate', async (req, res) => {
     }
 });
 
-app.post('/api/import/requirements', async (req, res) => {
+app.post('/api/import/requirements', upload.single('file'), async (req, res) => {
     const { project, sprint, release_id } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
     if (!project || !sprint) return res.status(400).json({ error: 'Project and Sprint are required.' });
@@ -527,7 +527,7 @@ app.post('/api/import/requirements', async (req, res) => {
     }
 });
 
-app.post('/api/import/defects/validate', async (req, res) => {
+app.post('/api/import/defects/validate', upload.single('file'), async (req, res) => {
     const { project } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
     if (!project) return res.status(400).json({ error: 'Project is required.' });
@@ -559,7 +559,7 @@ app.post('/api/import/defects/validate', async (req, res) => {
     }
 });
 
-app.post('/api/import/defects', async (req, res) => {
+app.post('/api/import/defects', upload.single('file'), async (req, res) => {
     const { project } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
     if (!project) return res.status(400).json({ error: 'Project is required.' });
@@ -753,7 +753,6 @@ app.delete("/api/retrospective/:id", (req, res) => {
     });
 });
 
-// START: Release Endpoints
 app.get("/api/releases/:project", async (req, res) => {
     try {
         const projectId = await getProjectId(req.params.project);
@@ -847,7 +846,6 @@ app.delete("/api/releases/:id", (req, res) => {
         res.json({ message: "Release deleted successfully", changes: this.changes });
     });
 });
-// END: Release Endpoints
 
 app.get("/api/defects/all", (req, res) => {
     const defectsSql = "SELECT d.*, p.name as project FROM defects d JOIN projects p ON d.project_id = p.id ORDER BY d.created_at DESC";
@@ -919,7 +917,7 @@ app.get("/api/defects/:project", async (req, res) => {
 
             const defectsWithLinks = defectRows.map(defect => ({
                 ...defect,
-                project: project, // Add project name back for frontend
+                project: project,
                 linkedRequirements: linksMap.get(defect.id) || []
             }));
 
