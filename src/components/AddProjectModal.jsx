@@ -44,6 +44,7 @@ const AddProjectModal = ({ isOpen, onClose, onAddProject }) => {
               <input
                 type="text"
                 id="newProjectName"
+                name="newProjectName"
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
                 placeholder="Enter the name of the new project"

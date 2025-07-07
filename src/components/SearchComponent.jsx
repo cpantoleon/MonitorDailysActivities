@@ -43,6 +43,8 @@ const SearchComponent = ({ query, onQueryChange, onSearch, onClear, onSuggestion
       <div className="search-input-group">
         <input
           type="text"
+          id="main-search-input"
+          name="main-search"
           value={query}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}

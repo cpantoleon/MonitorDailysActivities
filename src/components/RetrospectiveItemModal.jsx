@@ -98,7 +98,7 @@ const RetrospectiveItemModal = ({ isOpen, onClose, onSubmit, item, columnTypes }
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="retro-column-type">Column:</label>
-              <Select id="retro-column-type" name="column_type" value={columnTypes.find(opt => opt.value === formData.column_type)} onChange={(option) => handleSelectChange('column_type', option)} options={columnTypes} styles={customSelectStyles} menuPortalTarget={document.body} required />
+              <Select inputId="retro-column-type" name="column_type" value={columnTypes.find(opt => opt.value === formData.column_type)} onChange={(option) => handleSelectChange('column_type', option)} options={columnTypes} styles={customSelectStyles} menuPortalTarget={document.body} required />
             </div>
             <div className="form-group">
               <label htmlFor="retro-description">Description:</label>
@@ -106,7 +106,7 @@ const RetrospectiveItemModal = ({ isOpen, onClose, onSubmit, item, columnTypes }
             </div>
             <div className="form-group">
               <label htmlFor="retro-item-date">Date:</label>
-              <DatePicker selected={formData.item_date} onChange={handleDateChange} dateFormat="MM/dd/yyyy" className="notes-datepicker" wrapperClassName="date-picker-wrapper" placeholderText="Select a date" />
+              <DatePicker id="retro-item-date" name="item_date" selected={formData.item_date} onChange={handleDateChange} dateFormat="MM/dd/yyyy" className="notes-datepicker" wrapperClassName="date-picker-wrapper" placeholderText="Select a date" />
             </div>
             <div className="modal-actions">
               <button type="submit" className="modal-button-save">{item ? 'Save Changes' : 'Add Item'}</button>

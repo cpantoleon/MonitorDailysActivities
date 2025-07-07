@@ -82,7 +82,7 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
             <div className="form-group">
               <label htmlFor="newReqProjectSelect">Project:</label>
               <Select
-                id="newReqProjectSelect"
+                inputId="newReqProjectSelect"
                 name="project"
                 value={projectOptions.find(opt => opt.value === formData.project)}
                 onChange={(option) => handleSelectChange('project', option)}
@@ -100,15 +100,15 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
             </div>
             <div className="form-group">
               <label htmlFor="newReqType" className="optional-label">Type:</label>
-              <Select id="newReqType" name="type" value={typeOptions.find(opt => opt.value === formData.type)} onChange={(option) => handleSelectChange('type', option)} options={typeOptions} styles={customSelectStyles} menuPortalTarget={document.body} placeholder="-- Select Type --" isClearable />
+              <Select inputId="newReqType" name="type" value={typeOptions.find(opt => opt.value === formData.type)} onChange={(option) => handleSelectChange('type', option)} options={typeOptions} styles={customSelectStyles} menuPortalTarget={document.body} placeholder="-- Select Type --" isClearable />
             </div>
             <div className="form-group">
               <label htmlFor="newReqStatus">Status:</label>
-              <Select id="newReqStatus" name="status" value={statusOptions.find(opt => opt.value === formData.status)} onChange={(option) => handleSelectChange('status', option)} options={statusOptions} styles={customSelectStyles} menuPortalTarget={document.body} required />
+              <Select inputId="newReqStatus" name="status" value={statusOptions.find(opt => opt.value === formData.status)} onChange={(option) => handleSelectChange('status', option)} options={statusOptions} styles={customSelectStyles} menuPortalTarget={document.body} required />
             </div>
             <div className="form-group">
               <label htmlFor="newReqSprint">Sprint:</label>
-              <Select id="newReqSprint" name="sprint" value={sprintNumberOptions.find(opt => opt.value === formData.sprint)} onChange={(option) => handleSelectChange('sprint', option)} options={sprintNumberOptions} isDisabled={formData.isBacklog} styles={customSelectStyles} menuPortalTarget={document.body} />
+              <Select inputId="newReqSprint" name="sprint" value={sprintNumberOptions.find(opt => opt.value === formData.sprint)} onChange={(option) => handleSelectChange('sprint', option)} options={sprintNumberOptions} isDisabled={formData.isBacklog} styles={customSelectStyles} menuPortalTarget={document.body} />
             </div>
             <div className="form-group new-project-toggle">
               <input type="checkbox" id="isBacklogCheckbox" name="isBacklog" checked={formData.isBacklog} onChange={onFormChange} />
@@ -120,7 +120,7 @@ const AddNewRequirementModal = ({ isOpen, onClose, formData, onFormChange, onSub
                 <Tooltip content={releaseTooltipContent} className="release" />
               </div>
               <Select
-                id="newReqRelease"
+                inputId="newReqRelease"
                 name="release_id"
                 value={releaseOptions.find(opt => opt.value === formData.release_id) || null}
                 onChange={(option) => handleSelectChange('release_id', option)}

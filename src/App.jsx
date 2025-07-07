@@ -76,7 +76,7 @@ const OptionsMenu = ({ onOpenAddProjectModal, onOpenAddModal, onOpenImportModal,
             onClick={createHandler(onDeleteProjectRequest)} 
             className="options-menu-item danger" 
             disabled={!selectedProject}
-            title={!selectedProject ? "Select a project to enable deletion" : "Delete the currently selected project"}
+            title={!selectedProject ? "Select a project to enable deletion" : `Delete project: ${selectedProject}`}
           >
             - Delete Project
           </button>
@@ -381,7 +381,7 @@ function App() {
     if (projectParam) setSelectedProject(projectParam);
     if (sprintParam) setSelectedSprint(sprintParam);
     if (projectParam || sprintParam) navigate(location.pathname, { replace: true });
-  }, []);
+  }, [location.search, navigate]);
 
   const showMainMessage = useCallback((text, type = 'success') => {
     setToastInfo({ message: text, type: type, key: Date.now() });

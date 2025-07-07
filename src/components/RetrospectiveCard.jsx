@@ -39,8 +39,8 @@ const RetrospectiveCard = ({ item, onEdit, onDelete, onDragStart }) => {
       <p className="retro-card-description">{item.description}</p>
       <p className="retro-card-date">Date: {formatDate_MMDDYYYY(item.item_date)}</p>
       <div className="retro-card-actions">
-        <button onClick={() => onEdit(item)} className="retro-button retro-button-edit">Edit</button>
-        <button onClick={() => onDelete(item.id)} className="retro-button retro-button-delete">Delete</button>
+        <button onClick={() => onEdit(item)} className="retro-button retro-button-edit" title={`Edit item: ${item.description}`}>Edit</button>
+        <button onClick={() => onDelete(item.id)} className="retro-button retro-button-delete" title={`Delete item: ${item.description}`}>Delete</button>
       </div>
     </div>
   );

@@ -104,13 +104,14 @@ const ImportDefectsModal = ({ isOpen, onClose, onImport, projects, currentProjec
           </div>
           {error && <p className="error-message-modal">{error}</p>}
           <div className="form-group">
-            <label htmlFor="importFile">Excel File (.xlsx, .xls):</label>
-            <input type="file" id="importFile" accept=".xlsx, .xls" onChange={handleFileChange} />
+            <label htmlFor="importDefectFile">Excel File (.xlsx, .xls):</label>
+            <input type="file" id="importDefectFile" name="importDefectFile" accept=".xlsx, .xls" onChange={handleFileChange} />
           </div>
           <div className="form-group">
-            <label htmlFor="importProject">Target Project:</label>
+            <label htmlFor="importDefectProject">Target Project:</label>
             <Select
-              id="importProject"
+              inputId="importDefectProject"
+              name="importDefectProject"
               value={projectOptions.find(opt => opt.value === formState.targetProject)}
               onChange={handleProjectChange}
               options={projectOptions}

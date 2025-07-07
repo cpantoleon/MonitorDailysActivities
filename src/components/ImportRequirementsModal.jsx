@@ -134,13 +134,14 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
           </div>
           {error && <p className="error-message-modal">{error}</p>}
           <div className="form-group">
-            <label htmlFor="importFile">Excel File (.xlsx, .xls):</label>
-            <input type="file" id="importFile" accept=".xlsx, .xls" onChange={handleFileChange} />
+            <label htmlFor="importReqFile">Excel File (.xlsx, .xls):</label>
+            <input type="file" id="importReqFile" name="importReqFile" accept=".xlsx, .xls" onChange={handleFileChange} />
           </div>
           <div className="form-group">
-            <label htmlFor="importProject">Target Project:</label>
+            <label htmlFor="importReqProject">Target Project:</label>
             <Select
-              id="importProject"
+              inputId="importReqProject"
+              name="importReqProject"
               value={projectOptions.find(opt => opt.value === state.targetProject)}
               onChange={handleProjectChange}
               options={projectOptions}
@@ -151,9 +152,10 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
             />
           </div>
           <div className="form-group">
-            <label htmlFor="importSprint">Target Sprint:</label>
+            <label htmlFor="importReqSprint">Target Sprint:</label>
             <Select
-              id="importSprint"
+              inputId="importReqSprint"
+              name="importReqSprint"
               value={sprintNumberOptions.find(opt => opt.value === state.targetSprint)}
               onChange={(opt) => handleSelectChange('targetSprint', opt)}
               options={sprintNumberOptions}
@@ -163,13 +165,14 @@ const ImportRequirementsModal = ({ isOpen, onClose, onImport, projects, releases
             />
           </div>
           <div className="form-group new-project-toggle">
-            <input type="checkbox" id="importIsBacklog" checked={state.isBacklog} onChange={handleCheckboxChange} />
+            <input type="checkbox" id="importIsBacklog" name="importIsBacklog" checked={state.isBacklog} onChange={handleCheckboxChange} />
             <label htmlFor="importIsBacklog" className="checkbox-label optional-label">Assign to Backlog</label>
           </div>
           <div className="form-group">
-            <label htmlFor="importRelease" className="optional-label">Assign to Release (Optional):</label>
+            <label htmlFor="importReqRelease" className="optional-label">Assign to Release (Optional):</label>
             <Select
-              id="importRelease"
+              inputId="importReqRelease"
+              name="importReqRelease"
               value={releaseOptions.find(opt => opt.value === state.targetReleaseId) || null}
               onChange={(opt) => handleSelectChange('targetReleaseId', opt)}
               options={releaseOptions}

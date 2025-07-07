@@ -117,19 +117,33 @@ const HistoryModal = ({ requirement, isOpen, onClose, onSaveHistoryEntry, apiBas
               {displayHistory.map((entry) => {
                 const isEditingThisRow = editingEntryId === entry.id;
                 return (
-                  <tr key={entry.id}><td>{entry.status}</td><td>
+                  <tr key={entry.id}>
+                    <td>{entry.status}</td>
+                    <td>
                       {isEditingThisRow ? (
-                        <input type="date" value={editFormDate} onChange={e => setEditFormDate(e.target.value)} />
+                        <input type="date" id={`history-date-${entry.id}`} name={`history-date-${entry.id}`} value={editFormDate} onChange={e => setEditFormDate(e.target.value)} />
                       ) : ( formatDateForDisplayInternal(entry.date) )}
-                    </td><td>{entry.sprint || 'N/A'}</td><td>
+                    </td>
+                    <td>{entry.sprint || 'N/A'}</td>
+                    <td>
                       {isEditingThisRow ? (
-                        <input ref={commentInputRef} type="text" value={editFormComment} onChange={e => setEditFormComment(e.target.value)} placeholder="Enter comment" />
+                        <input ref={commentInputRef} type="text" id={`history-comment-${entry.id}`} name={`history-comment-${entry.id}`} value={editFormComment} onChange={e => setEditFormComment(e.target.value)} placeholder="Enter comment" />
                       ) : ( entry.comment || 'N/A' )}
-                    </td><td>
+                    </td>
+                    <td>
                       {isEditingThisRow ? (
                         <><button onClick={() => handleSaveEdit(entry)}>Save</button><button onClick={handleCancelEdit}>Cancel</button></>
-                      ) : ( entry.activityId ? <button onClick={() => handleStartEdit(entry)}>Edit</button> : null )}
-                    </td></tr>
+                      ) : ( entry.activityId ? 
+                        <button 
+                          onClick={() => handleStartEdit(entry)}
+                          title={`Edit history entry for status '${entry.status}' on ${formatDateForDisplayInternal(entry.date)}`}
+                          data-testid={`edit-history-button-${entry.id}`}
+                        >
+                          Edit
+                        </button> : null 
+                      )}
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>

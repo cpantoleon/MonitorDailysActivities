@@ -221,7 +221,7 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="defect-project">Project:</label>
-              <Select id="defect-project" name="project" value={projectOptions.find(opt => opt.value === formData.project)} onChange={(option) => handleSelectChange('project', option)} options={projectOptions} styles={customSelectStyles} menuPortalTarget={document.body} placeholder="-- Select Project --" required isDisabled={!!defect} />
+              <Select inputId="defect-project" name="project" value={projectOptions.find(opt => opt.value === formData.project)} onChange={(option) => handleSelectChange('project', option)} options={projectOptions} styles={customSelectStyles} menuPortalTarget={document.body} placeholder="-- Select Project --" required isDisabled={!!defect} />
             </div>
             <div className="form-group">
               <label htmlFor="defect-title">Title:</label>
@@ -236,16 +236,16 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
               {isCustomArea ? (
                 <input type="text" id="defect-area" name="area" value={formData.area} onChange={handleChange} placeholder="Enter new area description" required />
               ) : (
-                <Select id="defect-area" name="area" value={areaOptions.find(opt => opt.value === formData.area)} onChange={(option) => handleSelectChange('area', option)} options={areaOptions} styles={customSelectStyles} menuPortalTarget={document.body} placeholder="-- Select Area --" required />
+                <Select inputId="defect-area" name="area" value={areaOptions.find(opt => opt.value === formData.area)} onChange={(option) => handleSelectChange('area', option)} options={areaOptions} styles={customSelectStyles} menuPortalTarget={document.body} placeholder="-- Select Area --" required />
               )}
             </div>
             <div className="form-group new-project-toggle">
-              <input type="checkbox" id="isCustomAreaCheckbox" checked={isCustomArea} onChange={handleCustomAreaToggle} />
+              <input type="checkbox" id="isCustomAreaCheckbox" name="isCustomArea" checked={isCustomArea} onChange={handleCustomAreaToggle} />
               <label htmlFor="isCustomAreaCheckbox" className="checkbox-label optional-label">Add New Area</label>
             </div>
             <div className="form-group">
               <label htmlFor="defect-status">Status:</label>
-              <Select id="defect-status" name="status" value={statusSelectOptions.find(opt => opt.value === formData.status)} onChange={(option) => handleSelectChange('status', option)} options={statusSelectOptions} styles={customSelectStyles} menuPortalTarget={document.body} required />
+              <Select inputId="defect-status" name="status" value={statusSelectOptions.find(opt => opt.value === formData.status)} onChange={(option) => handleSelectChange('status', option)} options={statusSelectOptions} styles={customSelectStyles} menuPortalTarget={document.body} required />
             </div>
             <div className="form-group">
               <label htmlFor="defect-link" className="optional-label">Link:</label>
@@ -253,28 +253,30 @@ const DefectModal = ({ isOpen, onClose, onSubmit, defect, projects, currentSelec
             </div>
             <div className="form-group">
               <label htmlFor="defect-created-date">Date Logged:</label>
-              <DatePicker selected={formData.created_date} onChange={handleDateChange} dateFormat="MM/dd/yyyy" className="notes-datepicker" wrapperClassName="date-picker-wrapper" />
+              <DatePicker id="defect-created-date" name="created_date" selected={formData.created_date} onChange={handleDateChange} dateFormat="MM/dd/yyyy" className="notes-datepicker" wrapperClassName="date-picker-wrapper" />
             </div>
             <div className="form-group">
-              <label className="optional-label">Link to Requirements:</label>
-              <div className="dual-listbox-container">
-                <div className="listbox-wrapper">
-                  <label className="optional-label">Available</label>
-                  <select multiple value={toAdd} onChange={(e) => handleSelectionChange(e, setToAdd)} disabled={requirementsForSelectedProject.length === 0}>
-                    {availableRequirements.map(req => <option key={req.id} value={req.id}>{req.requirementUserIdentifier}</option>)}
-                  </select>
+              <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+                <legend className="optional-label" style={{ padding: 0, marginBottom: '5px' }}>Link to Requirements:</legend>
+                <div className="dual-listbox-container">
+                  <div className="listbox-wrapper">
+                    <label htmlFor="available-requirements-listbox" className="optional-label">Available</label>
+                    <select multiple id="available-requirements-listbox" name="available-requirements" value={toAdd} onChange={(e) => handleSelectionChange(e, setToAdd)} disabled={requirementsForSelectedProject.length === 0}>
+                      {availableRequirements.map(req => <option key={req.id} value={req.id}>{req.requirementUserIdentifier}</option>)}
+                    </select>
+                  </div>
+                  <div className="listbox-actions">
+                    <button type="button" onClick={handleAdd} disabled={toAdd.length === 0}>{'>>'}</button>
+                    <button type="button" onClick={handleRemove} disabled={toRemove.length === 0}>{'<<'}</button>
+                  </div>
+                  <div className="listbox-wrapper">
+                    <label htmlFor="selected-requirements-listbox" className="optional-label">Selected</label>
+                    <select multiple id="selected-requirements-listbox" name="selected-requirements" value={toRemove} onChange={(e) => handleSelectionChange(e, setToRemove)} disabled={selectedRequirements.length === 0}>
+                      {selectedRequirements.map(req => <option key={req.id} value={req.id}>{req.requirementUserIdentifier}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="listbox-actions">
-                  <button type="button" onClick={handleAdd} disabled={toAdd.length === 0}>{'>>'}</button>
-                  <button type="button" onClick={handleRemove} disabled={toRemove.length === 0}>{'<<'}</button>
-                </div>
-                <div className="listbox-wrapper">
-                  <label className="optional-label">Selected</label>
-                  <select multiple value={toRemove} onChange={(e) => handleSelectionChange(e, setToRemove)} disabled={selectedRequirements.length === 0}>
-                    {selectedRequirements.map(req => <option key={req.id} value={req.id}>{req.requirementUserIdentifier}</option>)}
-                  </select>
-                </div>
-              </div>
+              </fieldset>
             </div>
             <div className="form-group">
               <label htmlFor="defect-comment" className="optional-label">Comment:</label>

@@ -1,3 +1,5 @@
+// src\components\SprintSelector.jsx
+
 import React from 'react';
 
 const SprintSelector = ({ sprints, selectedSprint, onSelectSprint, disabled }) => {
@@ -5,6 +7,8 @@ const SprintSelector = ({ sprints, selectedSprint, onSelectSprint, disabled }) =
     <div className="selection-group">
       <span className="dropdown-label">Sprint Selection</span>
       <select
+        id="sprint-selector"
+        name="sprint-selector"
         value={selectedSprint}
         onChange={(e) => onSelectSprint(e.target.value)}
         className="main-label"

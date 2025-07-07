@@ -109,7 +109,7 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases, 
             </div>
             <div className="form-group">
               <label htmlFor="editReqType" className="optional-label">Type:</label>
-              <Select id="editReqType" name="type" value={typeOptions.find(opt => opt.value === formData.type)} onChange={(option) => handleSelectChange('type', option)} options={typeOptions} styles={customSelectStyles} menuPortalTarget={document.body} placeholder="-- Select Type --" isClearable />
+              <Select inputId="editReqType" name="type" value={typeOptions.find(opt => opt.value === formData.type)} onChange={(option) => handleSelectChange('type', option)} options={typeOptions} styles={customSelectStyles} menuPortalTarget={document.body} placeholder="-- Select Type --" isClearable />
             </div>
             <div className="form-group">
               <label htmlFor="editReqComment" className="optional-label">Current Comment:</label>
@@ -117,7 +117,7 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases, 
             </div>
             <div className="form-group">
               <label htmlFor="editReqSprint">Sprint:</label>
-              <Select id="editReqSprint" name="sprint" value={sprintNumberOptions.find(opt => opt.value === formData.sprint)} onChange={(option) => handleSelectChange('sprint', option)} options={sprintNumberOptions} isDisabled={formData.isBacklog} styles={customSelectStyles} menuPortalTarget={document.body} />
+              <Select inputId="editReqSprint" name="sprint" value={sprintNumberOptions.find(opt => opt.value === formData.sprint)} onChange={(option) => handleSelectChange('sprint', option)} options={sprintNumberOptions} isDisabled={formData.isBacklog} styles={customSelectStyles} menuPortalTarget={document.body} />
             </div>
             <div className="form-group new-project-toggle">
               <input type="checkbox" id="isBacklogCheckboxEdit" name="isBacklog" checked={formData.isBacklog || false} onChange={handleChange} />
@@ -125,7 +125,7 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases, 
             </div>
             <div className="form-group">
               <label htmlFor="editReqStatus">Status:</label>
-              <Select id="editReqStatus" name="status" value={statusOptions.find(opt => opt.value === formData.status)} onChange={(option) => handleSelectChange('status', option)} options={statusOptions} styles={customSelectStyles} menuPortalTarget={document.body} required />
+              <Select inputId="editReqStatus" name="status" value={statusOptions.find(opt => opt.value === formData.status)} onChange={(option) => handleSelectChange('status', option)} options={statusOptions} styles={customSelectStyles} menuPortalTarget={document.body} required />
             </div>
             <div className="form-group">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
@@ -133,7 +133,7 @@ const EditRequirementModal = ({ isOpen, onClose, onSave, requirement, releases, 
                 <Tooltip content={releaseTooltipContent} className="release" />
               </div>
               <Select
-                id="editReqRelease"
+                inputId="editReqRelease"
                 name="release_id"
                 value={releaseOptions.find(opt => opt.value === formData.release_id)}
                 onChange={(option) => handleSelectChange('release_id', option)}

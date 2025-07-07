@@ -58,8 +58,8 @@ const DefectCard = ({ defect, onEdit, onShowHistory, onDeleteRequest, onNavigate
       )}
 
       <div className="defect-card-actions">
-        <button onClick={() => onEdit(defect)} className="defect-action-button edit">Edit</button>
-        <button onClick={() => onShowHistory(defect)} className="defect-action-button history">History</button>
+        <button onClick={() => onEdit(defect)} className="defect-action-button edit" title={`Edit defect: ${defect.title}`}>Edit</button>
+        <button onClick={() => onShowHistory(defect)} className="defect-action-button history" title={`View history for defect: ${defect.title}`}>History</button>
         <button 
           onClick={() => onDeleteRequest(defect)} 
           className="defect-action-button delete"

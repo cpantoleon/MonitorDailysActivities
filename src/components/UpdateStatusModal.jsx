@@ -42,6 +42,7 @@ const UpdateStatusModal = ({ isOpen, onClose, onSave, requirement, newStatus }) 
             <label htmlFor="updateStatusComment" className="optional-label">Add a comment (optional):</label>
             <textarea
               id="updateStatusComment"
+              name="updateStatusComment"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows="4"

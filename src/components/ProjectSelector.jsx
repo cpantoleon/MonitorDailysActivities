@@ -1,3 +1,5 @@
+// src\components\ProjectSelector.jsx
+
 import React from 'react';
 
 const ProjectSelector = ({ projects, selectedProject, onSelectProject }) => {
@@ -5,6 +7,8 @@ const ProjectSelector = ({ projects, selectedProject, onSelectProject }) => {
     <div className="selection-group">
       <span className="dropdown-label">Project Selection</span>
       <select
+        id="project-selector"
+        name="project-selector"
         value={selectedProject}
         onChange={(e) => onSelectProject(e.target.value)}
         className="main-label"

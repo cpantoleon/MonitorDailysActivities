@@ -111,6 +111,7 @@ const KanbanCard = React.memo(({
         <button 
           onClick={() => onEditRequirement(requirement)} 
           className="edit-card-button"
+          title={`Edit ${requirement.requirementUserIdentifier}`}
         >
           Edit
         </button>
@@ -118,6 +119,7 @@ const KanbanCard = React.memo(({
         <button 
           onClick={() => onShowHistory(requirement)} 
           className="history-card-button"
+          title={`View history for ${requirement.requirementUserIdentifier}`}
         >
           History
         </button>

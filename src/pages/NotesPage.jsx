@@ -237,6 +237,7 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
           <label htmlFor="note-project">Project:</label>
           <select
             id="note-project"
+            name="noteProject"
             value={selectedProject}
             onChange={(e) => setSelectedProject(e.target.value)}
             disabled={!projects || projects.length === 0}
@@ -248,6 +249,8 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
         <div>
           <label htmlFor="note-date">Date:</label>
           <DatePicker
+            id="note-date"
+            name="noteDate"
             selected={selectedDate}
             onChange={(date) => setSelectedDate(date)}
             dateFormat="MM/dd/yyyy"
@@ -282,12 +285,19 @@ const NotesPage = ({ projects, apiBaseUrl, showMessage }) => {
 
       {!isLoadingNotes && selectedProject ? (
         <div className="notes-editor-area">
-          <h3>Notes for {selectedProject} on {selectedDate instanceof Date && !isNaN(selectedDate.getTime()) ? selectedDate.toLocaleDateString() : 'Select a date'}</h3>
+          <h3 id="notes-editor-label">Notes for {selectedProject} on {selectedDate instanceof Date && !isNaN(selectedDate.getTime()) ? selectedDate.toLocaleDateString() : 'Select a date'}</h3>
           <div className="editor-wrapper">
             <CKEditor
                 editor={ ClassicEditor }
                 data={noteText}
                 config={editorConfiguration}
+                onReady={editor => {
+                  // This connects the h3 label to the editor for screen readers.
+                  const editableElement = editor.ui.getEditableElement();
+                  if (editableElement && editableElement.parentElement) {
+                      editableElement.parentElement.setAttribute('aria-labelledby', 'notes-editor-label');
+                  }
+                }}
                 onChange={ ( event, editor ) => {
                     const data = editor.getData();
                     setNoteText(data);
